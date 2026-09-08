@@ -25,6 +25,7 @@ Route::get('/dashboard', function () {
 Route::middleware('auth')->group(function () {
     
 Route::get('/api/vehiculos/en-vivo', [DashboardApiController::class, 'vehiculosEnVivo'])->name('api.vehiculos.en-vivo');
+Route::get('/api/zonas-en-vivo', [\App\Http\Controllers\Api\DashboardApiController::class, 'zonasEnVivo'])->name('api.zonas.en-vivo');
     // ==========================================
     // PERFIL (Accesible para todos los logueados)
     // ==========================================
@@ -62,6 +63,7 @@ Route::get('/api/vehiculos/en-vivo', [DashboardApiController::class, 'vehiculosE
         Route::get('/vehiculos/{vehiculo}/ruta', [App\Http\Controllers\VehiculoController::class, 'historialRuta'])->name('vehiculos.ruta');
         Route::resource('dispositivos', DispositivoController::class);
         Route::resource('zonas', ZonaController::class);
+        
 
         
     });
