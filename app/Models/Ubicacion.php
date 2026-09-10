@@ -15,6 +15,7 @@ class Ubicacion extends Model
     protected $fillable = [
         'dispositivo_id', 
         'vehiculo_id', 
+        'ruta_id', // <-- NUEVO CAMPO (FK a la tabla rutas)
         'latitud', 
         'longitud', 
         'punto', 
@@ -50,5 +51,13 @@ class Ubicacion extends Model
     public function vehiculo(): BelongsTo 
     { 
         return $this->belongsTo(Vehiculo::class); 
+    }
+
+    // ==========================================
+    // NUEVA RELACIÓN: RUTA
+    // ==========================================
+    public function ruta(): BelongsTo 
+    {
+        return $this->belongsTo(Ruta::class);
     }
 }

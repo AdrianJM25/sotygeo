@@ -86,7 +86,7 @@
 
                                 <td class="px-6 py-4">
                                     <div class="flex items-center gap-3">
-                                        <!-- Marcador en miniatura: mismo ícono/color que verá en el mapa -->
+                                        <!-- Marcador en miniatura -->
                                         <div class="relative w-9 h-9 shrink-0">
                                             <div class="absolute inset-0 rounded-full opacity-25" style="background: {{ $colorIcono }};"></div>
                                             <div class="absolute inset-[3px] rounded-full bg-gray-900 flex items-center justify-center" style="border: 2px solid {{ $colorIcono }};">
@@ -123,6 +123,10 @@
                                 <td class="px-6 py-4">
                                     <div class="text-gray-900 font-medium">{{ $vehiculo->placas ?? 'Sin placas' }}</div>
                                     <div class="text-xs text-gray-500">{{ $vehiculo->marca ?? 'N/D' }} {{ $vehiculo->modelo ?? '' }} ({{ $vehiculo->anio ?? '-' }})</div>
+                                    <!-- Indicador de intervalo de corte de ruta -->
+                                    <div class="text-[11px] text-indigo-600 font-medium mt-0.5">
+                                        Corte de ruta: {{ $vehiculo->horas_corte_ruta ?? 24 }}h
+                                    </div>
                                 </td>
 
                                 <td class="px-6 py-4">
@@ -155,7 +159,7 @@
                                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                                         </button>
 
-                                        <form action="{{ route('vehiculos.destroy', $vehiculo) }}" method="POST" class="inline-block" onsubmit="return confirm('ATENCIÓN: Se eliminará todo el historial de este vehículo. ¿Estás seguro?');">
+                                        <form action="{{ route('vehiculos.destroy', $vehiculo) }}" method="POST" class="inline-block" onsubmit="return confirm('ATENCIÓN: Se eliminará todo el historial y las rutas de este vehículo. ¿Estás seguro?');">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" title="Eliminar vehículo" class="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all hover:scale-105">

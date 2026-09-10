@@ -10,6 +10,8 @@ use App\Http\Controllers\EmpresaController; // <-- Nuevo controlador maestro
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\GpsController;
 use App\Http\Controllers\Api\DashboardApiController;
+use App\Http\Controllers\RutaController; // <-- AQUÍ ESTABA EL ERROR: Apunta a la raíz, no a Api
+
 // Esta es la URL que pondrás en tu celular
 Route::get('/traccar', [GpsController::class, 'traccar']);
 
@@ -66,7 +68,7 @@ Route::get('/api/zonas-en-vivo', [\App\Http\Controllers\Api\DashboardApiControll
         
 
         
-    });
+    });Route::get('vehiculos/{vehiculo}/ruta', [RutaController::class, 'historial'])->name('vehiculos.ruta');
 
 
 

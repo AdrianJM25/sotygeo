@@ -47,6 +47,8 @@ return new class extends Migration
             // ==========================================
             $table->decimal('rendimiento_km_litro', 5, 2)->nullable();
             $table->date('vencimiento_seguro')->nullable();
+            // En tu migración de vehiculos, agrega esto antes del timestamps:
+$table->integer('horas_corte_ruta')->default(24)->comment('Frecuencia en horas para dividir el historial de rutas');
             
             $table->timestamps();
         });

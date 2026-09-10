@@ -13,7 +13,6 @@ class VehiculoController extends Controller
     public function index()
     {
         $user = auth()->user();
-
         $query = Vehiculo::with(['empresa', 'usuario', 'flotilla'])->latest();
 
         if ($user->hasRole('Cliente Individual')) {
@@ -21,7 +20,6 @@ class VehiculoController extends Controller
             $flotillas = collect();
             $empresas = collect();
             $clientes = collect();
-
         } elseif (!$user->hasRole('Super Administrador')) {
             $query->where('empresa_id', $user->empresa_id);
             $flotillas = Flotilla::where('empresa_id', $user->empresa_id)->get();
@@ -48,7 +46,6 @@ class VehiculoController extends Controller
             'empresa_id' => $user->hasRole('Super Administrador') ? 'nullable|exists:empresas,id' : 'nullable',
             'user_id' => $user->hasRole('Super Administrador') ? 'nullable|exists:users,id' : 'nullable',
             'flotilla_id' => 'nullable|exists:flotillas,id',
-
             'marca' => 'nullable|string|max:255',
             'modelo' => 'nullable|string|max:255',
             'anio' => 'nullable|integer|min:1900|max:2100',
@@ -57,23 +54,12 @@ class VehiculoController extends Controller
             'vin' => 'nullable|string|max:50|unique:vehiculos,vin',
             'rendimiento_km_litro' => 'nullable|numeric|min:0',
             'vencimiento_seguro' => 'nullable|date',
-
-            // Icono y color del marcador en el mapa
             'icono' => 'nullable|in:' . implode(',', array_keys(Vehiculo::ICONOS)),
             'color_icono' => 'nullable|string|max:7',
         ]);
 
-        $empresa_id = null;
-        $user_id = null;
-
-        if ($user->hasRole('Super Administrador')) {
-            $empresa_id = $request->empresa_id;
-            $user_id = $request->user_id;
-        } elseif ($user->hasRole('Cliente Individual')) {
-            $user_id = $user->id;
-        } else {
-            $empresa_id = $user->empresa_id;
-        }
+        $empresa_id = $user->hasRole('Super Administrador') ? $request->empresa_id : ($user->hasRole('Cliente Individual') ? null : $user->empresa_id);
+        $user_id = $user->hasRole('Super Administrador') ? $request->user_id : ($user->hasRole('Cliente Individual') ? $user->id : null);
 
         if ($request->filled('flotilla_id') && $empresa_id) {
             $flotilla = Flotilla::findOrFail($request->flotilla_id);
@@ -111,7 +97,6 @@ class VehiculoController extends Controller
             'vin' => 'nullable|string|max:50|unique:vehiculos,vin,' . $vehiculo->id,
             'rendimiento_km_litro' => 'nullable|numeric|min:0',
             'vencimiento_seguro' => 'nullable|date',
-
             'icono' => 'nullable|in:' . implode(',', array_keys(Vehiculo::ICONOS)),
             'color_icono' => 'nullable|string|max:7',
         ]);
@@ -139,8 +124,8 @@ class VehiculoController extends Controller
     public function destroy(Vehiculo $vehiculo)
     {
         $this->verificarPropiedadVehiculo($vehiculo);
-
         $vehiculo->delete();
+        
         return redirect()->route('vehiculos.index')->with('success', 'Vehículo eliminado correctamente.');
     }
 
@@ -154,21 +139,5 @@ class VehiculoController extends Controller
         } else {
             if ($vehiculo->empresa_id !== $user->empresa_id) abort(403, 'El vehículo pertenece a otra empresa.');
         }
-    }
-
-    public function historialRuta(Vehiculo $vehiculo)
-    {
-        $this->verificarPropiedadVehiculo($vehiculo);
-
-        if (!$vehiculo->dispositivo) {
-            return back()->with('error', 'Este vehículo no tiene un dispositivo GPS asignado.');
-        }
-
-        $ubicaciones = $vehiculo->dispositivo->ubicaciones()
-            ->whereDate('fecha_gps', today())
-            ->orderBy('fecha_gps', 'asc')
-            ->get();
-
-        return view('vehiculos.ruta', compact('vehiculo', 'ubicaciones'));
     }
 }

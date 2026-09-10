@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use App\Models\Dispositivo;
 use App\Models\Ubicacion;
 
@@ -10,40 +11,38 @@ class UbicacionController extends Controller
 {
     public function traccar(Request $request)
     {
-        // 1. Usamos "input" para que lea los datos sin importar si llegan por GET o POST
         $imei = $request->input('id');
 
         if (!$imei) {
-            return response('Error: Falta ID (IMEI)', 400);
+            return response()->json(['error' => 'Falta ID (IMEI)'], 400);
         }
 
         $dispositivo = Dispositivo::where('imei', $imei)->first();
 
         if (!$dispositivo) {
-            return response('Error: Dispositivo no registrado en la plataforma', 404);
+            Log::warning("Traccar Webhook: Intento de conexión de dispositivo no registrado (IMEI: {$imei})");
+            return response()->json(['error' => 'Dispositivo no registrado en la plataforma'], 404);
         }
 
-        // Conversiones
-        $velocidadKmh = $request->input('speed', 0) * 1.852;
+        $velocidadKmh = $request->input('speed', 0) * 1.852; // Nudos a km/h
         $enMovimiento = $velocidadKmh > 2;
 
         $fechaHora = $request->input('timestamp') 
             ? date('Y-m-d H:i:s', $request->input('timestamp')) 
             : now();
 
-        // Guardar la coordenada
         Ubicacion::create([
             'dispositivo_id' => $dispositivo->id,
             'vehiculo_id' => $dispositivo->vehiculo_id,
             'latitud' => $request->input('lat'),
             'longitud' => $request->input('lon'),
             'velocidad' => $velocidadKmh,
-            'altitud' => $request->input('altitude'),
-            'rumbo' => $request->input('bearing'),
-            'porcentaje_bateria' => $request->input('batt'),
-            'esta_cargando' => $request->input('charge') === 'true',
+            'altitud' => $request->input('altitude', 0),
+            'rumbo' => $request->input('bearing', 0),
+            'porcentaje_bateria' => $request->input('batt', null),
+            'esta_cargando' => $request->input('charge') === 'true' || $request->input('charge') === true,
             'en_movimiento' => $enMovimiento,
-            'estado_reposo' => $dispositivo->modo_reposo,
+            'estado_reposo' => $dispositivo->modo_reposo ?? false,
             'fecha_gps' => $fechaHora,
         ]);
 

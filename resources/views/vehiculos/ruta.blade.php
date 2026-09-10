@@ -1,76 +1,103 @@
 <x-app-layout>
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-6rem)]">
-        
-        <!-- Cabecera -->
-        <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-white z-10 shrink-0">
-            <div>
-                <h2 class="text-lg font-bold text-gray-800">Historial de Recorrido: {{ $vehiculo->nombre }}</h2>
-                <p class="text-xs text-gray-500">Mostrando puntos registrados el día de hoy.</p>
-            </div>
-            <a href="{{ route('vehiculos.index') }}" class="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors">
-                Regresar
+    <x-slot name="header">
+        <div class="flex justify-between items-center">
+            <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+                Historial de Ruta: <span class="text-indigo-600">{{ $vehiculo->nombre }}</span>
+            </h2>
+            <a href="{{ route('vehiculos.index') }}" class="text-sm text-gray-600 hover:text-gray-900 underline">
+                &larr; Volver a Vehículos
             </a>
         </div>
+    </x-slot>
 
-        <!-- Alerta si no hay datos -->
-        @if($ubicaciones->isEmpty())
-            <div class="flex-1 flex items-center justify-center bg-gray-50 z-0">
-                <div class="text-center">
-                    <svg class="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.242-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                    <h3 class="text-lg font-medium text-gray-900">Sin movimientos aún</h3>
-                    <p class="text-sm text-gray-500 mt-1">El GPS no ha reportado ubicaciones el día de hoy.</p>
-                </div>
+    <div class="py-6">
+        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+            
+            <!-- Barra de Filtros (Selector de Fecha) -->
+            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-4 mb-4">
+                <form method="GET" action="{{ route('vehiculos.ruta', $vehiculo->id) }}" class="flex flex-wrap items-end gap-4">
+                    <div>
+                        <label for="fecha" class="block text-sm font-medium text-gray-700">Seleccionar Fecha:</label>
+                        <input type="date" name="fecha" id="fecha" 
+                               value="{{ request('fecha', $fechaConsulta->format('Y-m-d')) }}" 
+                               class="mt-1 block rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none">
+                            Consultar Ruta
+                        </button>
+                    </div>
+                </form>
             </div>
-        @else
-            <!-- Lienzo del Mapa -->
-            <div id="mapa-historial" class="w-full flex-1 z-0"></div>
-        @endif
+
+            <!-- Contenedor del Mapa y Estadísticas -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                
+                <!-- Panel Lateral de Estadísticas (1 columna) -->
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-4 space-y-4">
+                    <h3 class="font-bold text-gray-700 border-b pb-2">Resumen del Día</h3>
+                    <div>
+                        <span class="text-xs text-gray-500 block">Puntos GPS registrados:</span>
+                        <span class="text-lg font-semibold text-gray-900">{{ count($ubicaciones) }}</span>
+                    </div>
+                    <div>
+                        <span class="text-xs text-gray-500 block">Fecha consultada:</span>
+                        <span class="text-sm font-medium text-gray-900">{{ $fechaConsulta->format('d/m/Y') }}</span>
+                    </div>
+                    <!-- Puedes agregar más métricas aquí conforme las calcules -->
+                </div>
+
+                <!-- El Mapa (3 columnas) -->
+                <div class="md:col-span-3 bg-white overflow-hidden shadow-sm sm:rounded-lg p-2">
+                    <div id="mapa-historial" style="height: 550px; width: 100%;" class="rounded-lg z-0"></div>
+                </div>
+
+            </div>
+
+        </div>
     </div>
 
-    @if($ubicaciones->isNotEmpty())
-    <!-- Script para trazar la línea -->
+    <!-- Script para inicializar el mapa con Leaflet (Ejemplo conceptual) -->
+    @push('scripts')
+    <!-- Asegúrate de incluir losCDN de Leaflet en tu layout principal o aquí -->
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            // Pasamos las ubicaciones de la base de datos a JavaScript
-            var ubicaciones = @json($ubicaciones);
+        document.addEventListener("DOMContentLoaded", function() {
+            // Coordenadas iniciales (si hay ubicaciones tomamos la primera, si no, México por defecto)
+            const ubicaciones = @json($ubicaciones);
+            
+            let latInicial = 19.4326; // Fallback
+            let lonInicial = -99.1332;
 
-            // Mapeamos solo las latitudes y longitudes en un arreglo puro para Leaflet
-            var coordenadas = ubicaciones.map(function(u) {
-                return [parseFloat(u.latitud), parseFloat(u.longitud)];
-            });
+            if (ubicaciones.length > 0) {
+                latInicial = ubicaciones[0].latitud;
+                lonInicial = ubicaciones[0].longitud;
+            }
 
-            // Inicializamos el mapa centrado en el primer punto
-            var map = L.map('mapa-historial', { zoomControl: false }).setView(coordenadas[0], 15);
-            L.control.zoom({ position: 'topright' }).addTo(map);
+            // Inicializar Mapa Leaflet
+            const map = L.map('mapa-historial').setView([latInicial, lonInicial], 13);
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
-                attribution: '© OpenStreetMap - SotyGeo'
+                attribution: '&copy; OpenStreetMap contributors'
             }).addTo(map);
 
-            // 1. Dibujar la línea de la ruta
-            var rutaLinea = L.polyline(coordenadas, {
-                color: '#4F46E5', // Indigo-600
-                weight: 5,
-                opacity: 0.7,
-                smoothFactor: 1
-            }).addTo(map);
+            if (ubicaciones.length > 0) {
+                // Mapear coordenadas para la polilínea
+                const latLngs = ubicaciones.map(u => [u.latitud, u.longitud]);
 
-            // 2. Ajustar el "zoom" automáticamente para que se vea toda la ruta en pantalla
-            map.fitBounds(rutaLinea.getBounds(), { padding: [50, 50] });
+                // Dibujar la línea de la ruta
+                const polyline = L.polyline(latLngs, {color: 'indigo', weight: 4}).addTo(map);
 
-            // 3. Poner un punto verde de "Inicio"
-            L.circleMarker(coordenadas[0], {
-                color: '#16a34a', // Verde
-                fillColor: '#16a34a',
-                fillOpacity: 1,
-                radius: 6
-            }).addTo(map).bindPopup('<b>Inicio del recorrido</b><br>Hora: ' + new Date(ubicaciones[0].fecha_gps).toLocaleTimeString());
+                // Ajustar el zoom del mapa para que encaje toda la ruta del día
+                map.fitBounds(polyline.getBounds());
 
-            // 4. Poner un marcador tradicional en la "Última posición"
-            var ultimoIndice = coordenadas.length - 1;
-            L.marker(coordenadas[ultimoIndice]).addTo(map).bindPopup('<b>Posición Actual / Final</b><br>Velocidad: ' + ubicaciones[ultimoIndice].velocidad + ' km/h<br>Hora: ' + new Date(ubicaciones[ultimoIndice].fecha_gps).toLocaleTimeString());
+                // Agregar marcadores de Inicio y Fin
+                L.marker(latLngs[0]).addTo(map).bindPopup("<b>Inicio de ruta</b><br>" + ubicaciones[0].fecha_gps);
+                L.marker(latLngs[latLngs.length - 1]).addTo(map).bindPopup("<b>Fin de ruta / Último punto</b><br>" + ubicaciones[ubicaciones.length - 1].fecha_gps);
+            } else {
+                alert("No hay registros de ruta para esta fecha.");
+            }
         });
     </script>
-    @endif
+    @endpush
 </x-app-layout>

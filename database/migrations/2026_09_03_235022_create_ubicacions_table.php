@@ -14,7 +14,12 @@ return new class extends Migration {
             // ==========================================
             $table->foreignId('dispositivo_id')->constrained('dispositivos')->onDelete('cascade');
             $table->foreignId('vehiculo_id')->nullable()->constrained('vehiculos')->onDelete('cascade');
-            
+            // Modifica tu migración de ubicaciones. Agrega esto debajo de vehiculo_id:
+$table->foreignId('ruta_id')->nullable()->constrained('rutas')->onDelete('cascade');
+
+// IMPORTANTE PARA EL RENDIMIENTO: Agrega índices a las fechas y relaciones, 
+// ya que las tablas de GPS crecen a millones de registros muy rápido.
+$table->index(['vehiculo_id', 'fecha_gps']);
             // ==========================================
             // Datos Espaciales y Coordenadas
             // ==========================================
@@ -45,6 +50,8 @@ return new class extends Migration {
             // ==========================================
             $table->timestamp('fecha_gps'); // Hora que dictó el satélite
             
+
+                   
             // created_at y updated_at = Hora en la que llegó a tu servidor
             $table->timestamps(); 
         });
