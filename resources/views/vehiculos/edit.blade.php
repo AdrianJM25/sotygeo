@@ -1,4 +1,5 @@
 <!-- ================= MODAL DE EDICIÓN ================= -->
+<template x-teleport="body">
 <div x-show="openEdit" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center p-4 text-left">
     <div x-show="openEdit" x-transition.opacity @click="openEdit = false" class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm"></div>
 
@@ -83,7 +84,17 @@
                     </select>
                 </div>
                 @endunless
+            </div>
 
+            <div class="pt-2 border-t border-gray-100">
+                <h3 class="text-sm font-bold text-gray-700 mb-4 mt-4 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7l6-2.5 5.447 2.724A1 1 0 0121 8.618v10.764a1 1 0 01-1.447.894L15 17l-6 2.5z" /></svg>
+                    Cómo se verá en el mapa
+                </h3>
+                <x-selector-icono-vehiculo :seleccionado="old('icono', $vehiculo->icono)" :color-seleccionado="old('color_icono', $vehiculo->color_icono)" />
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-gray-100 mt-2">
                 <div>
                     <label class="block mb-2 text-sm font-medium text-gray-900">Placas</label>
                     <input type="text" name="placas" value="{{ old('placas', $vehiculo->placas) }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg block w-full p-2.5 uppercase">
@@ -118,3 +129,4 @@
         </form>
     </div>
 </div>
+</template>

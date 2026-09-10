@@ -7,6 +7,7 @@ use App\Models\Empresa;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
@@ -43,7 +44,8 @@ class UserController extends Controller
             'telefono' => 'nullable|string|max:20',
             'password' => 'required|string|min:8',
             'role' => 'required|exists:roles,name',
-            'empresa_id' => 'nullable|exists:empresas,id', // Se valida que la empresa exista
+            'empresa_id' => 'nullable|exists:empresas,id',
+            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048', // Validación de imagen
 
             'direccion.calle' => 'nullable|required_with:direccion.codigo_postal|string|max:255',
             'direccion.numero_exterior' => 'nullable|string|max:20',
@@ -62,6 +64,12 @@ class UserController extends Controller
                           ? ($validated['empresa_id'] ?? null) 
                           : auth()->user()->empresa_id;
 
+            // Manejo de la subida del avatar
+            $avatarPath = null;
+            if ($request->hasFile('avatar')) {
+                $avatarPath = $request->file('avatar')->store('avatars', 'public');
+            }
+
             $user = User::create([
                 'empresa_id' => $empresa_id,
                 'nombre' => $validated['nombre'],
@@ -69,6 +77,7 @@ class UserController extends Controller
                 'apellido_materno' => $validated['apellido_materno'] ?? null,
                 'email' => $validated['email'],
                 'telefono' => $validated['telefono'] ?? null,
+                'avatar' => $avatarPath, // Guardar la ruta en la base de datos
                 'password' => Hash::make($validated['password']),
                 'activo' => $request->has('activo'),
             ]);
@@ -107,6 +116,7 @@ class UserController extends Controller
             'role' => 'required|exists:roles,name',
             'empresa_id' => 'nullable|exists:empresas,id',
             'password' => 'nullable|string|min:8',
+            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048', // Validación de imagen
 
             'direccion.calle' => 'nullable|required_with:direccion.codigo_postal|string|max:255',
             'direccion.numero_exterior' => 'nullable|string|max:20',
@@ -123,9 +133,9 @@ class UserController extends Controller
             // Protección de edición multi-tenant
             $empresa_id = auth()->user()->hasRole('Super Administrador') 
                           ? ($validated['empresa_id'] ?? null) 
-                          : $usuario->empresa_id; // Si no es SOTyTECH, mantiene el valor que ya tenía
+                          : $usuario->empresa_id;
 
-            $usuario->update([
+            $dataToUpdate = [
                 'empresa_id' => $empresa_id,
                 'nombre' => $validated['nombre'],
                 'apellido_paterno' => $validated['apellido_paterno'],
@@ -133,7 +143,19 @@ class UserController extends Controller
                 'email' => $validated['email'],
                 'telefono' => $validated['telefono'] ?? null,
                 'activo' => $request->has('activo'),
-            ]);
+            ];
+
+            // Manejo de la actualización del avatar
+            if ($request->hasFile('avatar')) {
+                // Si el usuario ya tenía un avatar, lo eliminamos del storage
+                if ($usuario->avatar) {
+                    Storage::disk('public')->delete($usuario->avatar);
+                }
+                // Guardamos el nuevo avatar y actualizamos el array de datos
+                $dataToUpdate['avatar'] = $request->file('avatar')->store('avatars', 'public');
+            }
+
+            $usuario->update($dataToUpdate);
 
             if ($request->filled('password')) {
                 $usuario->update(['password' => Hash::make($validated['password'])]);
@@ -181,6 +203,11 @@ class UserController extends Controller
         }
 
         DB::transaction(function () use ($usuario) {
+            // Eliminar el avatar físico del storage si existe
+            if ($usuario->avatar) {
+                Storage::disk('public')->delete($usuario->avatar);
+            }
+
             $usuario->domicilio()->delete();
             $usuario->delete();
         });

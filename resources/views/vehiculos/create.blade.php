@@ -21,7 +21,6 @@
         <form action="{{ route('vehiculos.store') }}" method="POST" class="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
             @csrf
 
-            <!-- SECCIÓN MULTI-TENANT (Exclusivo SOTyTECH) -->
             @role('Super Administrador')
                 <div x-data="{ tipo_dueno: 'empresa' }" class="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
                     <label class="block mb-3 text-sm font-medium text-gray-900">¿A quién le pertenece este vehículo?</label>
@@ -30,7 +29,10 @@
                             <input type="radio" x-model="tipo_dueno" value="empresa" class="text-indigo-600">
                             <span class="ml-2 text-gray-700">Corporativo (Empresa)</span>
                         </label>
-            
+                        <label class="flex items-center text-sm cursor-pointer">
+                            <input type="radio" x-model="tipo_dueno" value="particular" class="text-indigo-600">
+                            <span class="ml-2 text-gray-700">Particular</span>
+                        </label>
                     </div>
                     <div x-show="tipo_dueno === 'empresa'">
                         <select name="empresa_id" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg block w-full p-2.5">
@@ -52,7 +54,7 @@
             @endrole
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
+
                 <div class="md:col-span-2">
                     <label class="block mb-2 text-sm font-medium text-gray-900">Nombre o Alias (Identificador) <span class="text-red-500">*</span></label>
                     <input type="text" name="nombre" value="{{ old('nombre') }}" placeholder="Ej: Unidad 01 - Reparto Sur" required class="bg-gray-50 border {{ $errors->has('nombre') && !old('is_edit') ? 'border-red-500' : 'border-gray-300' }} text-gray-900 text-sm rounded-lg focus:ring-gray-900 block w-full p-2.5">
@@ -81,7 +83,18 @@
                     </select>
                 </div>
                 @endunless
+            </div>
 
+            <!-- ================= PERSONALIZACIÓN EN EL MAPA ================= -->
+            <div class="pt-2 border-t border-gray-100">
+                <h3 class="text-sm font-bold text-gray-700 mb-4 mt-4 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7l6-2.5 5.447 2.724A1 1 0 0121 8.618v10.764a1 1 0 01-1.447.894L15 17l-6 2.5z" /></svg>
+                    Cómo se verá en el mapa
+                </h3>
+                <x-selector-icono-vehiculo :seleccionado="old('icono', 'sedan')" :color-seleccionado="old('color_icono', '#111827')" />
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-gray-100 mt-2">
                 <div>
                     <label class="block mb-2 text-sm font-medium text-gray-900">Placas</label>
                     <input type="text" name="placas" value="{{ old('placas') }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg block w-full p-2.5 uppercase">

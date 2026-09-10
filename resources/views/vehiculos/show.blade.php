@@ -1,4 +1,5 @@
 <!-- ================= MODAL DE DETALLES (SHOW) ================= -->
+<template x-teleport="body">
 <div x-show="openShow" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center p-4 text-left">
     <div x-show="openShow" x-transition.opacity @click="openShow = false" class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm"></div>
 
@@ -19,18 +20,31 @@
         </div>
 
         <div class="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
-            
+
+            @php
+                $iconoData = \App\Models\Vehiculo::ICONOS[$vehiculo->icono] ?? \App\Models\Vehiculo::ICONOS['sedan'];
+                $colorIcono = $vehiculo->color_icono ?? '#111827';
+            @endphp
+
             <div class="bg-gray-900 rounded-xl p-4 flex items-center justify-between">
-                <div>
-                    <h3 class="text-white text-xl font-bold">{{ $vehiculo->nombre }}</h3>
-                    <span class="text-gray-400 text-sm capitalize">{{ str_replace('_', ' ', $vehiculo->tipo_vehiculo) }}</span>
+                <div class="flex items-center gap-3">
+                    <div class="relative w-11 h-11 shrink-0">
+                        <div class="absolute inset-0 rounded-full opacity-30" style="background: {{ $colorIcono }};"></div>
+                        <div class="absolute inset-[3px] rounded-full bg-gray-800 flex items-center justify-center" style="border: 2px solid {{ $colorIcono }};">
+                            <svg class="w-5 h-5" fill="white" viewBox="0 0 24 24">{!! $iconoData['svg'] !!}</svg>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-white text-xl font-bold leading-tight">{{ $vehiculo->nombre }}</h3>
+                        <span class="text-gray-400 text-sm">{{ $iconoData['label'] }} · {{ str_replace('_', ' ', $vehiculo->tipo_vehiculo) }}</span>
+                    </div>
                 </div>
                 <div class="text-right">
                     <span class="block text-gray-400 text-xs uppercase tracking-wider mb-1">Dueño Legal</span>
                     @if($vehiculo->empresa)
                         <span class="inline-block bg-indigo-500/20 text-indigo-300 text-xs px-2 py-1 rounded font-medium">{{ $vehiculo->empresa->nombre }}</span>
                     @elseif($vehiculo->usuario)
-                        <span class="inline-block bg-green-500/20 text-green-300 text-xs px-2 py-1 rounded font-medium">{{ $vehiculo->usuario->nombre }} (Particular)</span>
+                        <span class="inline-block bg-cyan-500/20 text-cyan-300 text-xs px-2 py-1 rounded font-medium">{{ $vehiculo->usuario->nombre }} (Particular)</span>
                     @else
                         <span class="inline-block bg-gray-700 text-gray-300 text-xs px-2 py-1 rounded font-medium">SOTyTECH</span>
                     @endif
@@ -65,7 +79,7 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
-                    <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">Asignación Operativa</h3>
+                    <h3 class="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-2">Asignación Operativa</h3>
                     <div class="space-y-2">
                         <div>
                             <span class="block text-xs text-indigo-400/80">Flotilla</span>
@@ -74,12 +88,38 @@
                     </div>
                 </div>
 
-                <div class="bg-green-50/50 p-4 rounded-xl border border-green-100">
-                    <h3 class="text-xs font-bold text-green-600 uppercase tracking-wider mb-2">Hardware GPS</h3>
-                    {{-- Requiere la relación dispositivo() --}}
-                    <div class="text-sm font-medium text-green-800">
-                        Aún no se ha programado el módulo GPS en las vistas.
-                    </div>
+                <div class="{{ $vehiculo->dispositivo ? 'bg-emerald-50/50 border-emerald-100' : 'bg-gray-50/50 border-gray-200' }} p-4 rounded-xl border">
+                    <h3 class="text-xs font-bold {{ $vehiculo->dispositivo ? 'text-emerald-600' : 'text-gray-400' }} uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                        @if($vehiculo->dispositivo)
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        @endif
+                        Hardware GPS
+                    </h3>
+
+                    @if($vehiculo->dispositivo)
+                        <div class="space-y-1">
+                            <div>
+                                <span class="block text-[11px] text-emerald-500/80">IMEI</span>
+                                <span class="text-sm font-mono font-medium text-emerald-900">{{ $vehiculo->dispositivo->imei }}</span>
+                            </div>
+                            @if($vehiculo->dispositivo->numero_sim)
+                                <div>
+                                    <span class="block text-[11px] text-emerald-500/80">SIM</span>
+                                    <span class="text-sm font-medium text-emerald-900">{{ $vehiculo->dispositivo->numero_sim }}</span>
+                                </div>
+                            @endif
+                            @if($vehiculo->dispositivo->modelo)
+                                <div>
+                                    <span class="block text-[11px] text-emerald-500/80">Modelo</span>
+                                    <span class="text-sm font-medium text-emerald-900">{{ $vehiculo->dispositivo->modelo }}</span>
+                                </div>
+                            @endif
+                        </div>
+                    @else
+                        <div class="text-sm font-medium text-gray-500">
+                            Este vehículo aún no tiene un dispositivo GPS enlazado.
+                        </div>
+                    @endif
                 </div>
             </div>
 
@@ -92,3 +132,4 @@
         </div>
     </div>
 </div>
+</template>

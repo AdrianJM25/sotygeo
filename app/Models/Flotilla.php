@@ -23,8 +23,8 @@ class Flotilla extends Model
         return $this->belongsTo(User::class, 'user_id'); 
     }
 
-    public function activos(): HasMany 
-    { 
-        return $this->hasMany(Activo::class); 
-    }
+  public function vehiculos()
+{
+    return $this->hasMany(Vehiculo::class);
+}
 }

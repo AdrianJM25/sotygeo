@@ -13,19 +13,23 @@ class FlotillaController extends Controller
     {
         $userActual = auth()->user();
 
-        // Iniciamos la consulta base
-        $query = Flotilla::with(['usuario', 'activos', 'empresa'])->latest();
+        // SOLUCIÓN AL ERROR: Cambiamos 'activos' por 'vehiculos'
+        $query = Flotilla::with(['usuario', 'vehiculos', 'empresa'])->latest();
 
         if (!$userActual->hasRole('Super Administrador')) {
-            // Un cliente solo ve sus propias flotillas
             $query->where('empresa_id', $userActual->empresa_id);
             
-            // Y solo puede asignar usuarios de su propia empresa
-            $users = User::where('empresa_id', $userActual->empresa_id)->get();
+            // Solo usuarios activos de su propia empresa
+            $users = User::where('empresa_id', $userActual->empresa_id)
+                         ->where('activo', true)
+                         ->get(['id', 'nombre', 'apellido_paterno', 'empresa_id']);
+                         
             $empresas = collect([$userActual->empresa]); 
         } else {
-            // Tu equipo ve todo el panorama
-            $users = User::with('empresa')->get();
+            // Super Admin obtiene todos los usuarios activos para que Alpine.js los filtre en la vista
+            $users = User::where('activo', true)
+                         ->get(['id', 'nombre', 'apellido_paterno', 'empresa_id']);
+                         
             $empresas = Empresa::orderBy('nombre')->get();
         }
 
@@ -41,7 +45,7 @@ class FlotillaController extends Controller
         $request->validate([
             'nombre' => 'required|string|max:255',
             'descripcion' => 'nullable|string',
-            'user_id' => 'nullable|exists:users,id', // Opcional: Una flotilla puede no tener gestor al inicio
+            'user_id' => 'nullable|exists:users,id', 
             'empresa_id' => $userActual->hasRole('Super Administrador') ? 'required|exists:empresas,id' : 'nullable',
         ]);
 
@@ -49,7 +53,6 @@ class FlotillaController extends Controller
                         ? $request->empresa_id 
                         : $userActual->empresa_id;
 
-        // Validación de seguridad: El usuario asignado DEBE pertenecer a la empresa de la flotilla
         if ($request->filled('user_id')) {
             $gestor = User::findOrFail($request->user_id);
             if ($gestor->empresa_id != $empresa_id) {
@@ -71,7 +74,6 @@ class FlotillaController extends Controller
     {
         $userActual = auth()->user();
 
-        // Protección de ruta: Si un usuario adivina el ID en la URL de una flotilla ajena, lo bloqueamos
         if (!$userActual->hasRole('Super Administrador') && $flotilla->empresa_id !== $userActual->empresa_id) {
             abort(403, 'Acceso denegado a esta flotilla.');
         }
@@ -85,7 +87,7 @@ class FlotillaController extends Controller
 
         $empresa_id = $userActual->hasRole('Super Administrador') 
                         ? $request->empresa_id 
-                        : $flotilla->empresa_id; // Se mantiene en su empresa original si es un cliente editando
+                        : $flotilla->empresa_id; 
 
         if ($request->filled('user_id')) {
             $gestor = User::findOrFail($request->user_id);
@@ -108,7 +110,6 @@ class FlotillaController extends Controller
     {
         $userActual = auth()->user();
 
-        // Misma protección de ruta para la eliminación
         if (!$userActual->hasRole('Super Administrador') && $flotilla->empresa_id !== $userActual->empresa_id) {
             abort(403, 'Acceso denegado a esta flotilla.');
         }

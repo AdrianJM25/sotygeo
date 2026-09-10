@@ -15,7 +15,7 @@ export default defineConfig({
     server: {
         host: '0.0.0.0', // Permite conexiones desde tu red WiFi
         hmr: {
-            host: '192.168.100.10', // Tu IP real
+            host: '127.0.0.1', // Tu IP real
         },
     },
 });

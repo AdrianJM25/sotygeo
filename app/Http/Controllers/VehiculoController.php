@@ -14,32 +14,27 @@ class VehiculoController extends Controller
     {
         $user = auth()->user();
 
-        // 1. Iniciar consultas
         $query = Vehiculo::with(['empresa', 'usuario', 'flotilla'])->latest();
 
-        // 2. Filtros Multi-tenant por Rol
         if ($user->hasRole('Cliente Individual')) {
-            // Particular: Solo ve sus propios vehículos
             $query->where('user_id', $user->id);
-            $flotillas = collect(); // Particulares no suelen usar flotillas
+            $flotillas = collect();
             $empresas = collect();
             $clientes = collect();
 
         } elseif (!$user->hasRole('Super Administrador')) {
-            // Empresa Corporativa: Ve solo los vehículos de su empresa
             $query->where('empresa_id', $user->empresa_id);
             $flotillas = Flotilla::where('empresa_id', $user->empresa_id)->get();
             $empresas = collect([$user->empresa]);
             $clientes = collect();
         } else {
-            // SOTyTECH (Super Admin): Ve todo
             $flotillas = Flotilla::all();
             $empresas = Empresa::orderBy('nombre')->get();
             $clientes = User::role('Cliente Individual')->get();
         }
 
         $vehiculos = $query->paginate(10);
-        
+
         return view('vehiculos.index', compact('vehiculos', 'flotillas', 'empresas', 'clientes'));
     }
 
@@ -53,8 +48,7 @@ class VehiculoController extends Controller
             'empresa_id' => $user->hasRole('Super Administrador') ? 'nullable|exists:empresas,id' : 'nullable',
             'user_id' => $user->hasRole('Super Administrador') ? 'nullable|exists:users,id' : 'nullable',
             'flotilla_id' => 'nullable|exists:flotillas,id',
-            
-            // Características opcionales
+
             'marca' => 'nullable|string|max:255',
             'modelo' => 'nullable|string|max:255',
             'anio' => 'nullable|integer|min:1900|max:2100',
@@ -63,9 +57,12 @@ class VehiculoController extends Controller
             'vin' => 'nullable|string|max:50|unique:vehiculos,vin',
             'rendimiento_km_litro' => 'nullable|numeric|min:0',
             'vencimiento_seguro' => 'nullable|date',
+
+            // Icono y color del marcador en el mapa
+            'icono' => 'nullable|in:' . implode(',', array_keys(Vehiculo::ICONOS)),
+            'color_icono' => 'nullable|string|max:7',
         ]);
 
-        // Determinar el dueño según el rol
         $empresa_id = null;
         $user_id = null;
 
@@ -78,7 +75,6 @@ class VehiculoController extends Controller
             $empresa_id = $user->empresa_id;
         }
 
-        // Seguridad: Validar que la flotilla sea de la misma empresa
         if ($request->filled('flotilla_id') && $empresa_id) {
             $flotilla = Flotilla::findOrFail($request->flotilla_id);
             if ($flotilla->empresa_id != $empresa_id) {
@@ -89,6 +85,8 @@ class VehiculoController extends Controller
         Vehiculo::create(array_merge($request->all(), [
             'empresa_id' => $empresa_id,
             'user_id' => $user_id,
+            'icono' => $request->input('icono', 'sedan'),
+            'color_icono' => $request->input('color_icono', '#111827'),
         ]));
 
         return redirect()->route('vehiculos.index')->with('success', 'Vehículo registrado correctamente.');
@@ -113,6 +111,9 @@ class VehiculoController extends Controller
             'vin' => 'nullable|string|max:50|unique:vehiculos,vin,' . $vehiculo->id,
             'rendimiento_km_litro' => 'nullable|numeric|min:0',
             'vencimiento_seguro' => 'nullable|date',
+
+            'icono' => 'nullable|in:' . implode(',', array_keys(Vehiculo::ICONOS)),
+            'color_icono' => 'nullable|string|max:7',
         ]);
 
         $empresa_id = $user->hasRole('Super Administrador') ? $request->empresa_id : $vehiculo->empresa_id;
@@ -128,6 +129,8 @@ class VehiculoController extends Controller
         $vehiculo->update(array_merge($request->all(), [
             'empresa_id' => $empresa_id,
             'user_id' => $user_id,
+            'icono' => $request->input('icono', $vehiculo->icono),
+            'color_icono' => $request->input('color_icono', $vehiculo->color_icono),
         ]));
 
         return redirect()->route('vehiculos.index')->with('success', 'Vehículo actualizado correctamente.');
@@ -136,14 +139,11 @@ class VehiculoController extends Controller
     public function destroy(Vehiculo $vehiculo)
     {
         $this->verificarPropiedadVehiculo($vehiculo);
-        
+
         $vehiculo->delete();
         return redirect()->route('vehiculos.index')->with('success', 'Vehículo eliminado correctamente.');
     }
 
-    /**
-     * Helper de seguridad: Verifica que el vehículo pertenezca al usuario que intenta modificarlo.
-     */
     private function verificarPropiedadVehiculo(Vehiculo $vehiculo)
     {
         $user = auth()->user();
@@ -158,15 +158,12 @@ class VehiculoController extends Controller
 
     public function historialRuta(Vehiculo $vehiculo)
     {
-        // Validamos que el vehículo sea de la empresa del usuario
         $this->verificarPropiedadVehiculo($vehiculo);
 
-        // Si el vehículo no tiene un GPS asignado, no hay ruta que mostrar
         if (!$vehiculo->dispositivo) {
             return back()->with('error', 'Este vehículo no tiene un dispositivo GPS asignado.');
         }
 
-        // Traemos todas las ubicaciones de HOY ordenadas desde la más antigua a la más nueva
         $ubicaciones = $vehiculo->dispositivo->ubicaciones()
             ->whereDate('fecha_gps', today())
             ->orderBy('fecha_gps', 'asc')

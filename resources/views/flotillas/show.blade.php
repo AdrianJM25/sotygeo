@@ -32,36 +32,45 @@
 
                 <div>
                     <span class="block text-xs text-gray-500">Empresa / Corporativo Dueño</span>
-                    <span class="text-sm font-medium text-indigo-700">
+                    <span class="text-sm font-medium text-indigo-700 block mt-1">
                         {{ $flotilla->empresa->nombre ?? 'SOTyTECH (Interno)' }}
                     </span>
                 </div>
 
                 <div>
                     <span class="block text-xs text-gray-500">Usuario Responsable (Gestor)</span>
-                    <span class="text-sm font-medium text-gray-900">
-                        @if($flotilla->usuario)
-                            {{ $flotilla->usuario->nombre }} {{ $flotilla->usuario->apellido_paterno }}
-                        @else
-                            <span class="text-gray-400 italic">Sin asignar</span>
-                        @endif
-                    </span>
+                    @if($flotilla->usuario)
+                        <div class="flex items-center gap-2 mt-1">
+                            <div class="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-[10px] font-bold overflow-hidden shadow-sm shrink-0">
+                                @if($flotilla->usuario->avatar_url)
+                                    <img src="{{ $flotilla->usuario->avatar_url }}" class="w-full h-full object-cover" alt="Avatar">
+                                @else
+                                    {{ mb_strtoupper(mb_substr($flotilla->usuario->nombre, 0, 1) . mb_substr($flotilla->usuario->apellido_paterno, 0, 1)) }}
+                                @endif
+                            </div>
+                            <span class="text-sm font-medium text-gray-900">
+                                {{ $flotilla->usuario->nombre }} {{ $flotilla->usuario->apellido_paterno }}
+                            </span>
+                        </div>
+                    @else
+                        <span class="text-gray-400 italic text-sm mt-1 block">Sin asignar</span>
+                    @endif
                 </div>
 
                 <div>
-                    <span class="block text-xs text-gray-500">Total de Activos / Vehículos</span>
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-xs font-medium border border-blue-100 mt-0.5">
-                        {{ $flotilla->activos->count() }} Unidades
+                    <span class="block text-xs text-gray-500">Total de Vehículos</span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-xs font-medium border border-blue-100 mt-1">
+                        {{ $flotilla->vehiculos->count() }} Unidades
                     </span>
                 </div>
 
                 <div>
                     <span class="block text-xs text-gray-500">Fecha de Creación</span>
-                    <span class="text-sm font-medium text-gray-900">{{ $flotilla->created_at->format('d/m/Y') }}</span>
+                    <span class="text-sm font-medium text-gray-900 block mt-1">{{ $flotilla->created_at->format('d/m/Y') }}</span>
                 </div>
 
                 <div class="sm:col-span-2 mt-2 pt-2 border-t border-gray-200/60">
-                    <span class="block text-xs text-gray-500 mb-1">Descripción / Notas operativas</span>
+                    <span class="block text-xs text-gray-500 mb-2">Descripción / Notas operativas</span>
                     <p class="text-sm text-gray-800 bg-white p-3 rounded-lg border border-gray-200">
                         {{ $flotilla->descripcion ?? 'No se proporcionaron notas o descripciones para esta flotilla.' }}
                     </p>

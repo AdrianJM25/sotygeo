@@ -4,20 +4,21 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsTo; // <-- Inyección para Empresa
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Spatie\Permission\Traits\HasRoles; 
+use Illuminate\Support\Facades\Storage;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, HasRoles; 
+    use HasFactory, Notifiable, HasRoles;
 
     protected $fillable = [
-        'empresa_id', // <-- Habilitado para asignación masiva
+        'empresa_id',
         'nombre',
         'apellido_paterno',
         'apellido_materno',
@@ -51,7 +52,17 @@ class User extends Authenticatable
         );
     }
 
-    // <-- NUEVA RELACIÓN MULTI-TENANT -->
+    /**
+     * URL pública del avatar, o null si el usuario no tiene foto cargada.
+     * Uso: $usuario->avatar_url
+     */
+    protected function avatarUrl(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->avatar ? Storage::disk('public')->url($this->avatar) : null
+        );
+    }
+
     public function empresa(): BelongsTo
     {
         return $this->belongsTo(Empresa::class);
