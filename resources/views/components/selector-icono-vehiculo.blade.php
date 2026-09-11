@@ -2,15 +2,20 @@
 
 @php
     $iconosDisponibles = \App\Models\Vehiculo::iconosDisponibles();
+    
+    // Ajuste por si tenías guardados íconos de pruebas anteriores sin "images/"
+    $iconoActual = $seleccionado;
+    if ($iconoActual && str_starts_with($iconoActual, 'icons_vehiculos/') && !str_starts_with($iconoActual, 'icons_vehiculos/personalizados')) {
+        $iconoActual = 'images/' . $iconoActual;
+    }
+    
     $primero = $iconosDisponibles[0]['path'] ?? null;
-    $storageBase = rtrim(\Illuminate\Support\Facades\Storage::disk('public')->url(''), '/');
 @endphp
 
 <div x-data="{
-        icono: '{{ $seleccionado ?? $primero }}',
+        icono: '{{ $iconoActual ?? $primero }}',
         color: '{{ $colorSeleccionado }}',
         customPreview: null,
-        storageBase: '{{ $storageBase }}',
         elegirPredefinido(ruta) {
             this.icono = ruta;
             this.customPreview = null;
@@ -25,7 +30,14 @@
             this.$refs.iconoFile.value = '';
         },
         get previewSrc() {
-            return this.customPreview || (this.icono ? `${this.storageBase}/${this.icono}` : '');
+            if (this.customPreview) return this.customPreview;
+            if (!this.icono) return '';
+            
+            // Si es personalizado, va a Storage. Si no, va a public/images.
+            if (this.icono.startsWith('icons_vehiculos/personalizados')) {
+                return `{{ rtrim(Storage::disk('public')->url(''), '/') }}/${this.icono}`;
+            }
+            return `{{ rtrim(asset(''), '/') }}/${this.icono}`;
         }
      }">
 
@@ -33,7 +45,7 @@
 
     @if(empty($iconosDisponibles))
         <div class="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg p-3 mb-2">
-            No se encontraron íconos en <code>storage/app/public/icons_vehiculos</code>. Verifica que la carpeta tenga archivos y que corriste <code>php artisan storage:link</code>.
+            No se encontraron íconos en <code>public/images/icons_vehiculos</code>. Verifica que copiaste las imágenes ahí.
         </div>
     @endif
 
@@ -42,7 +54,8 @@
             <button type="button" @click="elegirPredefinido('{{ $item['path'] }}')"
                     :class="(icono === '{{ $item['path'] }}' && !customPreview) ? 'border-gray-900 bg-gray-100 shadow-sm' : 'border-gray-200 bg-gray-50 hover:bg-gray-100 hover:border-gray-300'"
                     class="flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl border-2 transition-all">
-                <img src="{{ Illuminate\Support\Facades\Storage::disk('public')->url($item['path']) }}" class="w-7 h-7 object-contain" alt="{{ $item['label'] }}">
+                <!-- SE ELIMINÓ STORAGE AQUÍ, AHORA USA LA URL DIRECTA -->
+                <img src="{{ $item['url'] }}" class="w-7 h-7 object-contain" alt="{{ $item['label'] }}">
                 <span class="text-[9px] font-medium text-gray-500 text-center leading-tight px-0.5">{{ $item['label'] }}</span>
             </button>
         @endforeach

@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-
+use Illuminate\Support\Facades\File;
 class Vehiculo extends Model
 {
     use HasFactory;
@@ -53,23 +53,35 @@ class Vehiculo extends Model
         ];
     }
 
-    // ==========================================
-    // ÍCONOS DEL MAPA (storage/app/public/icons_vehiculos)
+// ==========================================
+    // ÍCONOS DEL MAPA (public/images/icons_vehiculos)
     // ==========================================
 
     public static function iconosDisponibles(): array
     {
-        return collect(Storage::disk('public')->files('icons_vehiculos'))
-            ->filter(fn ($ruta) => !Str::contains($ruta, '/personalizados/'))
-            ->map(function ($ruta) {
-                $nombreBase = pathinfo($ruta, PATHINFO_FILENAME);
+        $rutaDirectorio = public_path('images/icons_vehiculos');
+
+        if (!\Illuminate\Support\Facades\File::exists($rutaDirectorio)) {
+            return [];
+        }
+
+        return collect(\Illuminate\Support\Facades\File::files($rutaDirectorio))
+            ->map(function ($file) {
+                $ruta = 'images/icons_vehiculos/' . $file->getFilename();
+                $nombreBase = $file->getFilenameWithoutExtension();
+                
                 $label = preg_replace('/^icons8-/', '', $nombreBase);
                 preg_match('/-(\d+)$/', $label, $m);
                 $tamano = isset($m[1]) ? (int) $m[1] : 0;
                 $label = preg_replace('/-\d+$/', '', $label);
                 $label = mb_convert_case(str_replace('-', ' ', $label), MB_CASE_TITLE, 'UTF-8');
 
-                return ['path' => $ruta, 'label' => $label, 'tamano' => $tamano];
+                return [
+                    'path' => $ruta, 
+                    'url' => asset($ruta), // <-- Generamos la URL real directamente
+                    'label' => $label, 
+                    'tamano' => $tamano
+                ];
             })
             ->groupBy('label')
             ->map(fn ($grupo) => $grupo->sortByDesc('tamano')->first())
@@ -81,15 +93,24 @@ class Vehiculo extends Model
     {
         return Attribute::make(
             get: function () {
-                if ($this->icono && Storage::disk('public')->exists($this->icono)) {
-                    return Storage::disk('public')->url($this->icono);
+                if (!$this->icono) {
+                    $fallback = static::iconosDisponibles()[0]['path'] ?? null;
+                    return $fallback ? asset($fallback) : null;
                 }
-                $fallback = static::iconosDisponibles()[0]['path'] ?? null;
-                return $fallback ? Storage::disk('public')->url($fallback) : null;
+
+                // 1. Si es un archivo subido manualmente (está en storage)
+                if (\Illuminate\Support\Str::startsWith($this->icono, 'icons_vehiculos/personalizados')) {
+                    return \Illuminate\Support\Facades\Storage::disk('public')->url($this->icono);
+                }
+
+                // 2. Si es un ícono predefinido (está en public/images)
+                return asset($this->icono);
             }
         );
     }
 
+
+   
     // ==========================================
     // RELACIONES MULTI-TENANT (SaaS)
     // ==========================================
