@@ -11,18 +11,14 @@
             to { opacity: 1; transform: translateY(0); }
         }
         .animate-item { animation: fadeSlideUp 0.4s ease-out both; }
-        
-        /* Estilizar el input de color para que no parezca un input por defecto */
         input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
         input[type="color"]::-webkit-color-swatch { border: none; border-radius: 6px; }
-        
-        /* Ajustar z-index del mapa para que no sobreponga modales de Alpine/Tailwind */
         .map-container { z-index: 10; }
     </style>
 
     <div x-data="{ busqueda: '' }" class="space-y-5 pb-8 max-w-[1600px] mx-auto">
 
-        <!-- Header Principal (Diseño SaaS) -->
+        <!-- Header Principal -->
         <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 animate-item">
             <div class="flex items-center gap-4">
                 <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-indigo-200">
@@ -49,7 +45,6 @@
             </div>
         </div>
 
-        <!-- Notificaciones -->
         @if(session('success'))
             <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 4000)" class="flex items-center justify-between px-5 py-3.5 rounded-xl bg-emerald-50 text-emerald-800 text-sm border border-emerald-200 shadow-sm animate-item" style="animation-delay: 0.1s;">
                 <span class="flex items-center gap-2.5 font-medium">
@@ -84,7 +79,7 @@
                         <h3 class="font-bold text-slate-800 text-sm uppercase tracking-wider">Crear Nueva Zona</h3>
                     </div>
 
-                    <form action="{{ route('zonas.store') }}" method="POST" id="form-zona" class="p-5 space-y-5">
+                    <form action="{{ route('zonas.store') }}" method="POST" id="form-zona" class="p-5 space-y-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
                         @csrf
                         <input type="hidden" name="coordenadas" id="input-coordenadas" required>
                         
@@ -103,7 +98,49 @@
                             </div>
                         </div>
 
-                        <!-- Instrucción para usar herramientas nativas del mapa -->
+                        <!-- NUEVA SECCIÓN: ASIGNACIÓN DE VEHÍCULOS -->
+                        <div class="border-t border-slate-100 pt-4 mt-2">
+                            <label class="block mb-2 text-xs font-semibold text-slate-600 uppercase">Asignar Vehículos y Alertas</label>
+                            <div class="space-y-2">
+                                @forelse($vehiculos as $index => $vehiculo)
+                                    <div x-data="{ seleccionado: false }" class="bg-slate-50 border border-slate-200 rounded-lg p-3 transition-colors" :class="{ 'border-indigo-300 bg-indigo-50/30': seleccionado }">
+                                        <label class="flex items-center gap-3 cursor-pointer">
+                                            <input type="checkbox" x-model="seleccionado" name="vehiculos[{{ $index }}][id]" value="{{ $vehiculo->id }}" 
+                                                   class="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500">
+                                            <div class="flex flex-col">
+                                                <span class="text-sm font-bold text-slate-700">{{ $vehiculo->nombre }}</span>
+                                                <span class="text-[10px] text-slate-400">{{ $vehiculo->placas ?? 'Sin Placas' }}</span>
+                                            </div>
+                                        </label>
+                                        
+                                        <!-- Opciones que aparecen al seleccionar el vehículo -->
+                                        <div x-show="seleccionado" x-collapse class="mt-3 pl-7 space-y-3">
+                                            <div>
+                                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Tipo de Regla</label>
+                                                <select name="vehiculos[{{ $index }}][tipo_regla]" class="w-full text-xs bg-white border border-slate-200 rounded-lg p-1.5 outline-none focus:border-indigo-500">
+                                                    <option value="informativa">Informativa (Solo Historial)</option>
+                                                    <option value="restringida">Restringida (Prohibido el paso)</option>
+                                                    <option value="permitida">Permitida (Zona segura)</option>
+                                                </select>
+                                            </div>
+                                            <div class="flex flex-col gap-1.5">
+                                                <label class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                                                    <input type="checkbox" name="vehiculos[{{ $index }}][notificar_entrada]" value="1" checked class="rounded text-emerald-500 focus:ring-emerald-500 border-slate-300">
+                                                    Generar alerta de Entrada
+                                                </label>
+                                                <label class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                                                    <input type="checkbox" name="vehiculos[{{ $index }}][notificar_salida]" value="1" checked class="rounded text-amber-500 focus:ring-amber-500 border-slate-300">
+                                                    Generar alerta de Salida
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @empty
+                                    <div class="text-xs text-slate-500 italic p-2">No tienes vehículos registrados.</div>
+                                @endforelse
+                            </div>
+                        </div>
+
                         <div id="alerta-dibujo" class="text-xs text-indigo-700 bg-indigo-50 border border-indigo-200/60 p-3 rounded-xl flex items-start gap-2">
                             <svg class="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                             <span>Utiliza las herramientas en la esquina superior izquierda del mapa para trazar el polígono antes de guardar.</span>
@@ -161,7 +198,7 @@
                 </div>
             </div>
 
-            <!-- Panel Derecho: El Mapa (Estilo original OpenStreetMap) -->
+            <!-- Panel Derecho: El Mapa -->
             <div class="lg:col-span-8 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden relative min-h-[600px] lg:min-h-[calc(100vh-10rem)] map-container animate-item" style="animation-delay: 0.3s;">
                 <div id="mapa-zonas" class="w-full h-full absolute inset-0 z-0"></div>
             </div>
@@ -174,16 +211,13 @@
         var capasMap = {}; 
 
         document.addEventListener('DOMContentLoaded', function () {
-            // Inicializar mapa centrado en Jiutepec, Morelos
             var map = L.map('mapa-zonas').setView([18.8814, -99.1764], 13);
 
-            // Mapa base original de OpenStreetMap
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
                 attribution: '© OpenStreetMap'
             }).addTo(map);
 
-            // 1. Cargar las Zonas existentes desde la Base de Datos
             var zonasGuardadas = @json($zonas);
             
             zonasGuardadas.forEach(function(zona) {
@@ -200,7 +234,6 @@
                             }
                         }).bindPopup('<div class="font-sans font-bold text-slate-800">' + zona.nombre + '</div>').addTo(map);
 
-                        // Guardar la capa para poder hacer zoom desde la lista
                         capasMap[zona.id] = layer;
                     } catch (err) {
                         console.error('Error parseando geojson para la zona:', zona.id, err);
@@ -208,7 +241,6 @@
                 }
             });
 
-            // 2. Configurar herramientas de dibujo nativas (Geoman)
             map.pm.addControls({
                 position: 'topleft',
                 drawMarker: false,
@@ -221,7 +253,7 @@
                 dragMode: false,
                 cutPolygon: false,
                 removalMode: true,
-                drawPolygon: true // Solo permitimos polígonos libres
+                drawPolygon: true 
             });
 
             map.pm.setLang('es');
@@ -232,7 +264,6 @@
             var alertaDibujo = document.getElementById('alerta-dibujo');
             var inputColor = document.querySelector('input[name="color_hex"]');
 
-            // 3. Evento: Cuando el usuario termina de dibujar un polígono
             map.on('pm:create', function(e) {
                 if (capaActual) {
                     map.removeLayer(capaActual);
@@ -241,7 +272,6 @@
                 capaActual = e.layer;
                 var coordenadas = capaActual.getLatLngs()[0];
                 
-                // Aplicar el color actual del input al dibujo nuevo
                 capaActual.setStyle({
                     color: inputColor.value,
                     fillColor: inputColor.value,
@@ -254,7 +284,6 @@
                 alertaDibujo.style.display = 'none';
             });
 
-            // 4. Evento: Si se borra la figura dibujada con el control de borrar (Goma)
             map.on('pm:remove', function(e) {
                 if (e.layer === capaActual) {
                     capaActual = null;
@@ -264,14 +293,12 @@
                 }
             });
 
-            // Escuchar cambios en el color para actualizar la figura dibujada en tiempo real
             inputColor.addEventListener('input', function(e) {
                 if(capaActual) {
                     capaActual.setStyle({ color: e.target.value, fillColor: e.target.value });
                 }
             });
 
-            // Función global para enfocar la zona al hacer clic en la lista
             window.enfocarZona = function(zonaId) {
                 if (capasMap[zonaId]) {
                     var bounds = capasMap[zonaId].getBounds();
