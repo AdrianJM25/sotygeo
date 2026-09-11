@@ -44,7 +44,7 @@ class GpsController extends Controller
             'vehiculo_id' => $dispositivo->vehiculo_id,
             'latitud' => $lat,
             'longitud' => $lon,
-            'punto' => DB::raw("ST_GeomFromText('POINT($lon $lat)', 4326)"), // LON va primero
+            'punto' => DB::raw("ST_GeomFromText('POINT($lon $lat)', 4326)"),
             'velocidad' => $velocidadKmh,
             'altitud' => $request->query('altitude', 0),
             'rumbo' => $request->query('bearing', 0),
@@ -63,17 +63,21 @@ class GpsController extends Controller
         return response('OK', 200);
     }
 
-   rivate function procesarGeocercas(Vehiculo $vehiculo, $lat, $lng, Carbon $fechaGps)
-{
-    $puntoActual = "POINT($lng $lat)";
-    
-    // Añadir 'zonas.' antes de 'poligono'
-    $zonasDentro = $vehiculo->zonas()->whereRaw(
-        "ST_Contains(zonas.poligono, ST_GeomFromText(?, 4326))", 
-        [$puntoActual]
-    )->get();
-    
-    $idsZonasDentro = $zonasDentro->pluck('id')->toArray();
+    private function procesarGeocercas(Vehiculo $vehiculo, $lat, $lng, Carbon $fechaGps)
+    {
+        $puntoActual = "POINT($lng $lat)";
+        
+        $zonasDentro = $vehiculo->zonas()->whereRaw(
+            "ST_Contains(zonas.poligono, ST_GeomFromText(?, 4326))", 
+            [$puntoActual]
+        )->get();
+        
+        $idsZonasDentro = $zonasDentro->pluck('id')->toArray();
+
+        $eventosAbiertos = EventoGeocerca::where('vehiculo_id', $vehiculo->id)
+                                         ->whereNull('fecha_salida')
+                                         ->get();
+        $idsZonasAbiertas = $eventosAbiertos->pluck('zona_id')->toArray();
 
         // Procesar Salidas
         foreach ($eventosAbiertos as $evento) {
@@ -87,7 +91,7 @@ class GpsController extends Controller
                     'duracion_minutos' => $duracion,
                 ]);
 
-                $regla = $evento->zona->vehiculos()->where('vehiculo_id', $vehiculo->id)->first()->pivot;
+                $regla = $evento->zona->vehiculos()->where('vehiculo_id', $vehiculo->id)->first()?->pivot;
                 if ($regla && $regla->notificar_salida) {
                     Alerta::create([
                         'vehiculo_id' => $vehiculo->id,
@@ -102,7 +106,7 @@ class GpsController extends Controller
         foreach ($zonasDentro as $zona) {
             if (!in_array($zona->id, $idsZonasAbiertas)) {
                 $regla = $zona->pivot;
-                $tipoEvento = $regla->tipo_regla === 'restringida' ? 'violacion_restringida' : 'normal';
+                $tipoEvento = ($regla && $regla->tipo_regla === 'restringida') ? 'violacion_restringida' : 'normal';
 
                 EventoGeocerca::create([
                     'vehiculo_id' => $vehiculo->id,
