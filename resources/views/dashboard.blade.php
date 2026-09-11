@@ -48,6 +48,10 @@
         }
         .zona-tooltip::before { display: none; }
 
+        /* Estilo para scrollbar del panel de alertas */
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
         @media (prefers-reduced-motion: reduce) {
             .card-in { animation: none; opacity: 1; transform: none; }
             .vehiculo-marker-pulse { animation: none; }
@@ -59,7 +63,6 @@
 
         <!-- Tarjetas de Resumen / KPIs -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
-
             <div class="kpi-card card-in bg-white border border-gray-200 p-4 rounded-2xl shadow-sm flex items-center justify-between transition-shadow hover:shadow-md" style="--flash-color:#EEF2FF">
                 <div>
                     <p class="text-sm font-medium text-gray-500">Unidades Totales</p>
@@ -104,22 +107,41 @@
             </div>
         </div>
 
-        <!-- Contenedor Principal: Mapa -->
-        <div class="card-in bg-white border border-gray-200 rounded-2xl shadow-sm flex-1 overflow-hidden relative flex flex-col">
-            <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-white z-10 shrink-0">
-                <h2 class="text-base font-bold text-gray-800 flex items-center gap-2">
-                    <span class="relative flex w-2.5 h-2.5">
-                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+        <!-- Contenedor Principal: Mapa y Panel de Alertas -->
+        <div class="flex flex-col lg:flex-row gap-4 flex-1 overflow-hidden">
+            
+            <!-- MAPA -->
+            <div class="card-in bg-white border border-gray-200 rounded-2xl shadow-sm flex-1 overflow-hidden relative flex flex-col" style="animation-delay: 0.20s;">
+                <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-white z-10 shrink-0">
+                    <h2 class="text-base font-bold text-gray-800 flex items-center gap-2">
+                        <span class="relative flex w-2.5 h-2.5">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                        </span>
+                        Monitoreo Geográfico en Vivo
+                    </h2>
+                    <span class="text-xs text-gray-400">
+                        Actualización cada 5s · <span id="ultima-actualizacion">esperando datos…</span>
                     </span>
-                    Monitoreo Geográfico en Vivo
-                </h2>
-                <span class="text-xs text-gray-400">
-                    Actualización cada 5s · <span id="ultima-actualizacion">esperando datos…</span>
-                </span>
+                </div>
+                <div id="mapa-rastreo" class="w-full flex-1 z-0"></div>
             </div>
 
-            <div id="mapa-rastreo" class="w-full flex-1 z-0"></div>
+            <!-- PANEL DE ALERTAS -->
+            <div class="card-in bg-white border border-gray-200 rounded-2xl shadow-sm w-full lg:w-96 flex flex-col shrink-0" style="animation-delay: 0.25s;">
+                <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-white shrink-0">
+                    <h2 class="text-base font-bold text-gray-800 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+                        Alertas Recientes
+                    </h2>
+                    <span class="bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full" id="contador-alertas">0</span>
+                </div>
+                
+                <div class="flex-1 overflow-y-auto scrollbar-hide p-4 space-y-3 bg-slate-50" id="lista-alertas">
+                    <div class="text-center text-sm text-gray-400 py-8">Cargando alertas...</div>
+                </div>
+            </div>
+
         </div>
     </div>
 
@@ -174,7 +196,6 @@
                 requestAnimationFrame(paso);
             }
 
-            // ===== Zonas / Geocercas (se cargan una vez, no se mueven) =====
             function cargarZonas() {
                 fetch('{{ route("api.zonas.en-vivo") }}')
                     .then(r => r.json())
@@ -196,7 +217,6 @@
                     .catch(err => console.error('Error cargando zonas:', err));
             }
 
-            // ===== Vehículos (cada 5s) =====
             function actualizarUbicaciones() {
                 fetch('{{ route("api.vehiculos.en-vivo") }}')
                     .then(response => response.json())
@@ -261,6 +281,47 @@
                     });
             }
 
+            // ===== Carga dinámica del Panel de Alertas =====
+            function cargarAlertas() {
+                fetch('{{ route("api.alertas.recientes") }}')
+                    .then(r => r.json())
+                    .then(alertas => {
+                        let contenedor = document.getElementById('lista-alertas');
+                        document.getElementById('contador-alertas').innerText = alertas.length;
+                        
+                        if (alertas.length === 0) {
+                            contenedor.innerHTML = '<div class="text-center text-sm text-gray-400 py-8">Sin alertas recientes</div>';
+                            return;
+                        }
+
+                        let html = '';
+                        alertas.forEach(alerta => {
+                            let esSalida = alerta.tipo.includes('salida');
+                            let color = esSalida ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-rose-600 bg-rose-50 border-rose-200';
+                            let icon = esSalida 
+                                ? 'M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1' 
+                                : 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z';
+                            
+                            html += `
+                                <div class="p-3 bg-white border border-gray-100 rounded-xl shadow-sm flex gap-3 hover:shadow-md transition-shadow">
+                                    <div class="shrink-0 mt-0.5">
+                                        <div class="w-8 h-8 rounded-full ${color} flex items-center justify-center border">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${icon}"></path></svg>
+                                        </div>
+                                    </div>
+                                    <div class="flex-1">
+                                        <p class="text-sm font-semibold text-gray-800">${alerta.vehiculo ? alerta.vehiculo.nombre : 'Vehículo Desconocido'}</p>
+                                        <p class="text-xs text-gray-600 mt-0.5 leading-snug">${alerta.mensaje}</p>
+                                        <span class="text-[10px] text-gray-400 font-medium mt-1 block">${new Date(alerta.created_at).toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        contenedor.innerHTML = html;
+                    })
+                    .catch(e => console.error('Error cargando alertas:', e));
+            }
+
             setInterval(function () {
                 let span = document.getElementById('ultima-actualizacion');
                 if (!span || !ultimaActualizacionTs) return;
@@ -270,7 +331,10 @@
 
             cargarZonas();
             actualizarUbicaciones();
+            cargarAlertas();
+
             setInterval(actualizarUbicaciones, 5000);
+            setInterval(cargarAlertas, 10000); // Actualiza alertas cada 10 segundos
         });
     </script>
 </x-app-layout>

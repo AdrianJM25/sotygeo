@@ -33,7 +33,7 @@ Route::middleware('auth')->group(function () {
     // ==========================================
     Route::get('/api/vehiculos/en-vivo', [DashboardApiController::class, 'vehiculosEnVivo'])->name('api.vehiculos.en-vivo');
     Route::get('/api/zonas-en-vivo', [DashboardApiController::class, 'zonasEnVivo'])->name('api.zonas.en-vivo');
-
+Route::get('/api/alertas/recientes', [DashboardApiController::class, 'alertasRecientes'])->name('api.alertas.recientes');
     // ==========================================
     // PERFIL DE USUARIO
     // ==========================================

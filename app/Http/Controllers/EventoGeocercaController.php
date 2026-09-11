@@ -13,29 +13,32 @@ class EventoGeocercaController extends Controller
     {
         $user = auth()->user();
 
-        $query = EventoGeocerca::with(['vehiculo', 'zona'])->latest('fecha_entrada');
+        // Si en tu modelo EventoGeocerca la relación se llama 'zona', cambia 'geocerca' por 'zona' 
+        // y en tu vista blade cambia $evento->geocerca->nombre por $evento->zona->nombre.
+        $query = EventoGeocerca::with(['vehiculo', 'geocerca'])->latest('created_at');
 
         // Scoping Multi-Tenant
         if ($user->hasRole('Cliente Individual')) {
             $query->whereHas('vehiculo', fn($q) => $q->where('user_id', $user->id));
             $vehiculos = Vehiculo::where('user_id', $user->id)->get();
-            $zonas = Zona::where('user_id', $user->id)->get();
+            $geocercas = Zona::where('user_id', $user->id)->get();
         } elseif (!$user->hasRole('Super Administrador')) {
             $query->whereHas('vehiculo', fn($q) => $q->where('empresa_id', $user->empresa_id));
             $vehiculos = Vehiculo::where('empresa_id', $user->empresa_id)->get();
-            $zonas = Zona::where('empresa_id', $user->empresa_id)->get();
+            $geocercas = Zona::where('empresa_id', $user->empresa_id)->get();
         } else {
             $vehiculos = Vehiculo::all();
-            $zonas = Zona::all();
+            $geocercas = Zona::all();
         }
 
-        // Filtros opcionales
+        // Filtros opcionales (Alineados con el formulario de la vista)
         if ($request->filled('vehiculo_id')) {
             $query->where('vehiculo_id', $request->vehiculo_id);
         }
 
-        if ($request->filled('zona_id')) {
-            $query->where('zona_id', $request->zona_id);
+        if ($request->filled('geocerca_id')) {
+            // Cambia 'geocerca_id' por 'zona_id' si así se llama la columna en tu base de datos
+            $query->where('geocerca_id', $request->geocerca_id); 
         }
 
         if ($request->filled('tipo_evento')) {
@@ -43,15 +46,16 @@ class EventoGeocercaController extends Controller
         }
 
         if ($request->filled('fecha_inicio')) {
-            $query->whereDate('fecha_entrada', '>=', $request->fecha_inicio);
+            $query->whereDate('created_at', '>=', $request->fecha_inicio);
         }
 
         if ($request->filled('fecha_fin')) {
-            $query->whereDate('fecha_entrada', '<=', $request->fecha_fin);
+            $query->whereDate('created_at', '<=', $request->fecha_fin);
         }
 
         $eventos = $query->paginate(20);
 
-        return view('geocercas.historial', compact('eventos', 'vehiculos', 'zonas'));
+        // Se envía $geocercas (como lo espera el @foreach de la vista)
+        return view('geocercas.historial', compact('eventos', 'vehiculos', 'geocercas'));
     }
 }

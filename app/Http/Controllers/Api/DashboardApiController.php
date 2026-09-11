@@ -31,13 +31,18 @@ class DashboardApiController extends Controller
     {
         $user = auth()->user();
 
-        // Mismo criterio de visibilidad que ZonaController@index (por creador).
-        // Si más adelante quieres que las zonas se compartan a nivel empresa
-        // en vez de por usuario individual, aquí es donde se ajustaría el filtro.
-        $zonas = Zona::select(
+        $query = Zona::select(
             'id', 'nombre', 'color_hex',
             DB::raw('ST_AsGeoJSON(poligono) as geojson')
-        )->where('user_id', $user->id)->get();
+        );
+
+        if ($user->hasRole('Cliente Individual')) {
+            $query->where('user_id', $user->id);
+        } elseif (!$user->hasRole('Super Administrador')) {
+            $query->where('empresa_id', $user->empresa_id);
+        }
+
+        $zonas = $query->get();
 
         $features = $zonas->map(fn ($zona) => [
             'type' => 'Feature',
@@ -54,4 +59,21 @@ class DashboardApiController extends Controller
             'features' => $features,
         ]);
     }
+
+
+
+    public function alertasRecientes(Request $request)
+{
+    $user = auth()->user();
+
+    $query = \App\Models\Alerta::with('vehiculo')->latest();
+
+    if ($user->hasRole('Cliente Individual')) {
+        $query->whereHas('vehiculo', fn($q) => $q->where('user_id', $user->id));
+    } elseif (!$user->hasRole('Super Administrador')) {
+        $query->whereHas('vehiculo', fn($q) => $q->where('empresa_id', $user->empresa_id));
+    }
+
+    return response()->json($query->take(15)->get()); // Retorna las últimas 15 notificaciones
+}
 }
