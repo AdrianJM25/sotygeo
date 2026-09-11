@@ -22,7 +22,6 @@
         <div class="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
 
             @php
-                $iconoData = \App\Models\Vehiculo::ICONOS[$vehiculo->icono] ?? \App\Models\Vehiculo::ICONOS['sedan'];
                 $colorIcono = $vehiculo->color_icono ?? '#111827';
             @endphp
 
@@ -30,13 +29,13 @@
                 <div class="flex items-center gap-3">
                     <div class="relative w-11 h-11 shrink-0">
                         <div class="absolute inset-0 rounded-full opacity-30" style="background: {{ $colorIcono }};"></div>
-                        <div class="absolute inset-[3px] rounded-full bg-gray-800 flex items-center justify-center" style="border: 2px solid {{ $colorIcono }};">
-                            <svg class="w-5 h-5" fill="white" viewBox="0 0 24 24">{!! $iconoData['svg'] !!}</svg>
+                        <div class="absolute inset-[3px] rounded-full bg-gray-800 flex items-center justify-center overflow-hidden" style="border: 2px solid {{ $colorIcono }};">
+                            <img src="{{ $vehiculo->icono_url }}" class="w-5 h-5 object-contain" alt="">
                         </div>
                     </div>
                     <div>
                         <h3 class="text-white text-xl font-bold leading-tight">{{ $vehiculo->nombre }}</h3>
-                        <span class="text-gray-400 text-sm">{{ $iconoData['label'] }} · {{ str_replace('_', ' ', $vehiculo->tipo_vehiculo) }}</span>
+                        <span class="text-gray-400 text-sm">{{ str_replace('_', ' ', $vehiculo->tipo_vehiculo) }}</span>
                     </div>
                 </div>
                 <div class="text-right">

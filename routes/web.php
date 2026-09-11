@@ -1,21 +1,22 @@
 <?php
 
+use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\DispositivoController;
 use App\Http\Controllers\ZonaController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VehiculoController;
 use App\Http\Controllers\FlotillaController;
-use App\Http\Controllers\EmpresaController; // <-- Nuevo controlador maestro
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\EmpresaController;
+use App\Http\Controllers\RutaController;
 use App\Http\Controllers\Api\GpsController;
 use App\Http\Controllers\Api\DashboardApiController;
-use App\Http\Controllers\RutaController; // <-- AQUÍ ESTABA EL ERROR: Apunta a la raíz, no a Api
+use App\Http\Controllers\EventoGeocercaController;
 
-// Esta es la URL que pondrás en tu celular
+// Webhook para recepción de ubicación GPS (Traccar)
 Route::get('/traccar', [GpsController::class, 'traccar']);
 
-
+// Landing page comercial (welcome.blade.php)
 Route::get('/', function () {
     return view('welcome');
 });
@@ -25,19 +26,23 @@ Route::get('/dashboard', function () {
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/geocercas/historial', [EventoGeocercaController::class, 'index'])->name('geocercas.historial');
     
-Route::get('/api/vehiculos/en-vivo', [DashboardApiController::class, 'vehiculosEnVivo'])->name('api.vehiculos.en-vivo');
-Route::get('/api/zonas-en-vivo', [\App\Http\Controllers\Api\DashboardApiController::class, 'zonasEnVivo'])->name('api.zonas.en-vivo');
     // ==========================================
-    // PERFIL (Accesible para todos los logueados)
+    // API INTERNA (Dashboard y Mapas)
+    // ==========================================
+    Route::get('/api/vehiculos/en-vivo', [DashboardApiController::class, 'vehiculosEnVivo'])->name('api.vehiculos.en-vivo');
+    Route::get('/api/zonas-en-vivo', [DashboardApiController::class, 'zonasEnVivo'])->name('api.zonas.en-vivo');
+
+    // ==========================================
+    // PERFIL DE USUARIO
     // ==========================================
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // ==========================================
-    // RUTAS EXCLUSIVAS DE SOTYTECH
-    // (Gestión global de clientes/empresas)
+    // EXCLUSIVO SOTYTECH (SaaS)
     // ==========================================
     Route::middleware(['role:Super Administrador'])->group(function () {
         Route::resource('empresas', EmpresaController::class);
@@ -45,40 +50,31 @@ Route::get('/api/zonas-en-vivo', [\App\Http\Controllers\Api\DashboardApiControll
 
     // ==========================================
     // ADMINISTRACIÓN DE PERSONAL Y GRUPOS
-    // (No accesible para Gestores ni Clientes Individuales)
     // ==========================================
     Route::middleware(['role:Super Administrador|Administrador de Empresa'])->group(function () {
-        // Usuarios
         Route::resource('usuarios', UserController::class);
         Route::delete('usuarios/{usuario}/eliminar', [UserController::class, 'eliminar'])->name('usuarios.eliminar');
-        
-        // Flotillas
         Route::resource('flotillas', FlotillaController::class);
     });
 
     // ==========================================
     // OPERACIÓN LOGÍSTICA Y ACTIVOS
-    // (Accesible para operativos y clientes particulares)
     // ==========================================
     Route::middleware(['role:Super Administrador|Administrador de Empresa|Gestor de flotilla|Cliente Individual'])->group(function () {
+        // Vehículos y Rutas
         Route::resource('vehiculos', VehiculoController::class);
-        Route::get('/vehiculos/{vehiculo}/ruta', [App\Http\Controllers\VehiculoController::class, 'historialRuta'])->name('vehiculos.ruta');
+        Route::get('/vehiculos/{vehiculo}/ruta', [RutaController::class, 'historial'])->name('vehiculos.ruta');
+        Route::patch('/vehiculos/{vehiculo}/actualizar-corte', [VehiculoController::class, 'actualizarCorteRuta'])->name('vehiculos.actualizar-corte');
+        
+        // Dispositivos y Geocercas
         Route::resource('dispositivos', DispositivoController::class);
         Route::resource('zonas', ZonaController::class);
-        
-
-        
-    });Route::get('vehiculos/{vehiculo}/ruta', [RutaController::class, 'historial'])->name('vehiculos.ruta');
-
-
-
-    // En el grupo de OPERACIÓN LOGÍSTICA Y ACTIVOS:
-Route::middleware(['role:Super Administrador|Administrador de Empresa|Gestor de flotilla|Cliente Individual'])->group(function () {
-    Route::resource('vehiculos', VehiculoController::class);
-    Route::resource('dispositivos', DispositivoController::class);
-    Route::resource('zonas', ZonaController::class);
+    });
 });
 
+// Bloquear acceso al registro público (Sobrescribe las rutas de auth.php)
+Route::match(['get', 'post'], '/register', function () {
+    return redirect('/');
 });
 
 require __DIR__.'/auth.php';

@@ -18,7 +18,7 @@
             </button>
         </div>
 
-        <form action="{{ route('vehiculos.store') }}" method="POST" class="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+        <form action="{{ route('vehiculos.store') }}" method="POST" enctype="multipart/form-data" class="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
             @csrf
 
             @role('Super Administrador')
@@ -91,7 +91,7 @@
                     <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7l6-2.5 5.447 2.724A1 1 0 0121 8.618v10.764a1 1 0 01-1.447.894L15 17l-6 2.5z" /></svg>
                     Cómo se verá en el mapa
                 </h3>
-                <x-selector-icono-vehiculo :seleccionado="old('icono', 'sedan')" :color-seleccionado="old('color_icono', '#111827')" />
+                <x-selector-icono-vehiculo :seleccionado="old('icono')" :color-seleccionado="old('color_icono', '#111827')" />
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-gray-100 mt-2">

@@ -19,7 +19,7 @@
             </button>
         </div>
 
-        <form action="{{ route('vehiculos.update', $vehiculo) }}" method="POST" class="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+        <form action="{{ route('vehiculos.update', $vehiculo) }}" method="POST" enctype="multipart/form-data" class="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
             @csrf
             @method('PUT')
             <input type="hidden" name="is_edit" value="{{ $vehiculo->id }}">

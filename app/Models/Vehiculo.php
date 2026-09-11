@@ -2,11 +2,15 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class Vehiculo extends Model
 {
@@ -18,7 +22,7 @@ class Vehiculo extends Model
         'empresa_id',
         'user_id',
         'flotilla_id',
-        'nombre', 
+        'nombre',
         'tipo_vehiculo',
         'marca',
         'modelo',
@@ -30,43 +34,14 @@ class Vehiculo extends Model
         'vencimiento_seguro',
         'icono',
         'color_icono',
-        'horas_corte_ruta', // <-- NUEVO CAMPO
+        'horas_corte_ruta',
     ];
 
-    public const ICONOS = [
-        'sedan' => [
-            'label' => 'Sedán',
-            'svg' => '<rect x="3" y="13" width="18" height="4" rx="1.5"/><polygon points="8.5,9.5 15.5,9.5 17,13 7,13"/><circle cx="7.5" cy="17.5" r="1.6"/><circle cx="16.5" cy="17.5" r="1.6"/>',
-        ],
-        'suv' => [
-            'label' => 'SUV',
-            'svg' => '<rect x="3" y="12.5" width="18" height="4.5" rx="1.2"/><rect x="7" y="8.5" width="10" height="4.5" rx="1"/><circle cx="7.5" cy="17.8" r="1.8"/><circle cx="16.5" cy="17.8" r="1.8"/>',
-        ],
-        'pickup' => [
-            'label' => 'Camioneta Pickup',
-            'svg' => '<rect x="3" y="9" width="7" height="4.5" rx="1"/><rect x="10" y="12" width="8" height="1.5"/><rect x="3" y="13" width="18" height="3.5" rx="1"/><circle cx="7" cy="17.5" r="1.6"/><circle cx="17" cy="17.5" r="1.6"/>',
-        ],
-        'van' => [
-            'label' => 'Van / Furgoneta',
-            'svg' => '<rect x="3" y="8.5" width="18" height="8.5" rx="1.5"/><circle cx="7" cy="17.5" r="1.6"/><circle cx="17" cy="17.5" r="1.6"/>',
-        ],
-        'camion' => [
-            'label' => 'Camión de Caja',
-            'svg' => '<rect x="3" y="11" width="5" height="5.5" rx="1"/><rect x="9" y="7.5" width="12" height="9" rx="1"/><circle cx="6" cy="17.5" r="1.5"/><circle cx="13" cy="17.5" r="1.5"/><circle cx="18" cy="17.5" r="1.5"/>',
-        ],
-        'tractocamion' => [
-            'label' => 'Tractocamión',
-            'svg' => '<rect x="2" y="11" width="4" height="5.5" rx="1"/><rect x="8" y="8.5" width="14" height="8" rx="1"/><circle cx="5" cy="17.5" r="1.4"/><circle cx="11" cy="17.5" r="1.4"/><circle cx="16" cy="17.5" r="1.4"/><circle cx="20" cy="17.5" r="1.4"/>',
-        ],
-        'motocicleta' => [
-            'label' => 'Motocicleta',
-            'svg' => '<circle cx="6" cy="17.5" r="2.2"/><circle cx="18" cy="17.5" r="2.2"/><polygon points="6,17.5 11,10.5 14,10.5 12,15 18,17.5"/><rect x="9" y="9.5" width="4" height="1.5" rx="0.5"/>',
-        ],
-        'autobus' => [
-            'label' => 'Autobús',
-            'svg' => '<rect x="2" y="8" width="20" height="9.5" rx="1.5"/><circle cx="6" cy="17.5" r="1.6"/><circle cx="12" cy="17.5" r="1.6"/><circle cx="18" cy="17.5" r="1.6"/>',
-        ],
-    ];
+    /**
+     * Se incluye automáticamente al convertir el modelo a JSON,
+     * para que el Mapa en Vivo reciba la URL del ícono sin pasos extra.
+     */
+    protected $appends = ['icono_url'];
 
     protected function casts(): array
     {
@@ -74,8 +49,45 @@ class Vehiculo extends Model
             'anio' => 'integer',
             'rendimiento_km_litro' => 'decimal:2',
             'vencimiento_seguro' => 'date',
-            'horas_corte_ruta' => 'integer', // <-- NUEVO CAST
+            'horas_corte_ruta' => 'integer',
         ];
+    }
+
+    // ==========================================
+    // ÍCONOS DEL MAPA (storage/app/public/icons_vehiculos)
+    // ==========================================
+
+    public static function iconosDisponibles(): array
+    {
+        return collect(Storage::disk('public')->files('icons_vehiculos'))
+            ->filter(fn ($ruta) => !Str::contains($ruta, '/personalizados/'))
+            ->map(function ($ruta) {
+                $nombreBase = pathinfo($ruta, PATHINFO_FILENAME);
+                $label = preg_replace('/^icons8-/', '', $nombreBase);
+                preg_match('/-(\d+)$/', $label, $m);
+                $tamano = isset($m[1]) ? (int) $m[1] : 0;
+                $label = preg_replace('/-\d+$/', '', $label);
+                $label = mb_convert_case(str_replace('-', ' ', $label), MB_CASE_TITLE, 'UTF-8');
+
+                return ['path' => $ruta, 'label' => $label, 'tamano' => $tamano];
+            })
+            ->groupBy('label')
+            ->map(fn ($grupo) => $grupo->sortByDesc('tamano')->first())
+            ->values()
+            ->all();
+    }
+
+    protected function iconoUrl(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                if ($this->icono && Storage::disk('public')->exists($this->icono)) {
+                    return Storage::disk('public')->url($this->icono);
+                }
+                $fallback = static::iconosDisponibles()[0]['path'] ?? null;
+                return $fallback ? Storage::disk('public')->url($fallback) : null;
+            }
+        );
     }
 
     // ==========================================
@@ -93,7 +105,7 @@ class Vehiculo extends Model
     }
 
     // ==========================================
-    // RELACIONES LOGÍSTICAS
+    // RELACIONES LOGÍSTICAS Y TELEMETRÍA
     // ==========================================
 
     public function flotilla(): BelongsTo
@@ -111,11 +123,44 @@ class Vehiculo extends Model
         return $this->hasOne(Dispositivo::class);
     }
 
-    // ==========================================
-    // NUEVA RELACIÓN: RUTAS (Historial)
-    // ==========================================
     public function rutas(): HasMany
     {
         return $this->hasMany(Ruta::class);
+    }
+
+    // ==========================================
+    // RELACIONES DE GEOCERCAS Y EVENTOS
+    // ==========================================
+
+    /**
+     * Geocercas a las que este vehículo está asignado y sus reglas.
+     */
+    public function zonas(): BelongsToMany
+    {
+        return $this->belongsToMany(Zona::class, 'vehiculo_zona')
+                    ->withPivot([
+                        'tipo_regla',
+                        'notificar_entrada',
+                        'notificar_salida',
+                        'permanencia_minima_minutos',
+                        'permanencia_maxima_minutos',
+                    ])
+                    ->withTimestamps();
+    }
+
+    /**
+     * Historial completo de eventos de geocerca del vehículo.
+     */
+    public function eventosGeocerca(): HasMany
+    {
+        return $this->hasMany(EventoGeocerca::class, 'vehiculo_id');
+    }
+
+    /**
+     * Eventos actualmente activos (el vehículo se encuentra dentro de la geocerca).
+     */
+    public function eventosGeocercaActivos(): HasMany
+    {
+        return $this->hasMany(EventoGeocerca::class, 'vehiculo_id')->whereNull('fecha_salida');
     }
 }

@@ -75,27 +75,26 @@
                     <tbody class="divide-y divide-gray-100">
                         @forelse ($vehiculos as $vehiculo)
                             @php
-                                $iconoData = \App\Models\Vehiculo::ICONOS[$vehiculo->icono] ?? \App\Models\Vehiculo::ICONOS['sedan'];
                                 $colorIcono = $vehiculo->color_icono ?? '#111827';
                                 $busquedaTexto = mb_strtolower("{$vehiculo->nombre} {$vehiculo->placas} {$vehiculo->marca} {$vehiculo->modelo} {$vehiculo->tipo_vehiculo}");
                             @endphp
-                            <tr x-data="{ openEdit: {{ $errors->any() && old('is_edit') == $vehiculo->id ? 'true' : 'false' }}, openShow: false }"
+
+                            <tr x-data="{ openEdit: {{ $errors->any() && old('is_edit') == $vehiculo->id ? 'true' : 'false' }}, openShow: false, openCorte: false }"
                                 x-show="busqueda === '' || @js($busquedaTexto).includes(busqueda.toLowerCase())"
                                 style="animation-delay: {{ $loop->index * 40 }}ms"
                                 class="row-in hover:bg-gray-50 transition-colors bg-white">
 
                                 <td class="px-6 py-4">
                                     <div class="flex items-center gap-3">
-                                        <!-- Marcador en miniatura -->
                                         <div class="relative w-9 h-9 shrink-0">
                                             <div class="absolute inset-0 rounded-full opacity-25" style="background: {{ $colorIcono }};"></div>
-                                            <div class="absolute inset-[3px] rounded-full bg-gray-900 flex items-center justify-center" style="border: 2px solid {{ $colorIcono }};">
-                                                <svg class="w-3.5 h-3.5" fill="white" viewBox="0 0 24 24">{!! $iconoData['svg'] !!}</svg>
+                                            <div class="absolute inset-[3px] rounded-full bg-gray-900 flex items-center justify-center overflow-hidden" style="border: 2px solid {{ $colorIcono }};">
+                                                <img src="{{ $vehiculo->icono_url }}" class="w-4 h-4 object-contain" alt="">
                                             </div>
                                         </div>
                                         <div>
                                             <div class="font-bold text-gray-900">{{ $vehiculo->nombre }}</div>
-                                            <div class="text-xs text-gray-500 mt-0.5">{{ $iconoData['label'] }}</div>
+                                            <div class="text-xs text-gray-500 mt-0.5 capitalize">{{ str_replace('_', ' ', $vehiculo->tipo_vehiculo) }}</div>
                                         </div>
                                     </div>
                                 </td>
@@ -123,10 +122,11 @@
                                 <td class="px-6 py-4">
                                     <div class="text-gray-900 font-medium">{{ $vehiculo->placas ?? 'Sin placas' }}</div>
                                     <div class="text-xs text-gray-500">{{ $vehiculo->marca ?? 'N/D' }} {{ $vehiculo->modelo ?? '' }} ({{ $vehiculo->anio ?? '-' }})</div>
-                                    <!-- Indicador de intervalo de corte de ruta -->
-                                    <div class="text-[11px] text-indigo-600 font-medium mt-0.5">
+
+                                    <button @click="openCorte = true" class="inline-flex items-center gap-1 text-[11px] text-indigo-600 font-semibold mt-1 hover:text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 transition-colors focus:outline-none">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                         Corte de ruta: {{ $vehiculo->horas_corte_ruta ?? 24 }}h
-                                    </div>
+                                    </button>
                                 </td>
 
                                 <td class="px-6 py-4">
@@ -149,6 +149,9 @@
                                             <a href="{{ route('vehiculos.ruta', $vehiculo->id) }}" title="Ver historial de ruta en mapa" class="p-1.5 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all hover:scale-105 focus:outline-none">
                                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
                                             </a>
+                                            <button @click="openCorte = true" title="Configurar periodo de ruta" class="p-1.5 text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 rounded-lg transition-all hover:scale-105 focus:outline-none">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                            </button>
                                         @endif
 
                                         <button @click="openShow = true" title="Ver detalles" class="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all hover:scale-105 focus:outline-none">
@@ -167,6 +170,47 @@
                                             </button>
                                         </form>
                                     </div>
+
+                                    <!-- ========================================== -->
+                                    <!-- MODAL RÁPIDO TELETRANSPORTADO AL BODY      -->
+                                    <!-- ========================================== -->
+                                    <template x-teleport="body">
+                                        <div x-cloak x-show="openCorte" class="fixed inset-0 z-[99] flex items-center justify-center bg-gray-900/50 backdrop-blur-sm p-4 whitespace-normal">
+                                            <div @click.away="openCorte = false" class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 text-left transform transition-all">
+                                                <div class="flex items-center justify-between mb-4">
+                                                    <h3 class="text-base font-bold text-gray-900">Periodo de Registro de Ruta</h3>
+                                                    <button @click="openCorte = false" class="text-gray-400 hover:text-gray-600 focus:outline-none">
+                                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                                    </button>
+                                                </div>
+                                                <p class="text-xs text-gray-500 mb-5 leading-relaxed">
+                                                    Define cada cuántas horas se segmentará o reiniciará el historial de ruta en el mapa para la unidad: <span class="font-semibold text-gray-800">{{ $vehiculo->nombre }}</span>.
+                                                </p>
+
+                                                <form action="{{ route('vehiculos.actualizar-corte', $vehiculo->id) }}" method="POST">
+                                                    @csrf
+                                                    @method('PATCH')
+
+                                                    <div class="mb-5">
+                                                        <label class="block text-xs font-semibold text-gray-700 uppercase mb-2">Horas por segmento de ruta</label>
+                                                        <select name="horas_corte_ruta" class="w-full text-sm border-gray-300 rounded-lg focus:ring-gray-900 focus:border-gray-900">
+                                                            <option value="6" {{ ($vehiculo->horas_corte_ruta ?? 24) == 6 ? 'selected' : '' }}>Cada 6 horas</option>
+                                                            <option value="12" {{ ($vehiculo->horas_corte_ruta ?? 24) == 12 ? 'selected' : '' }}>Cada 12 horas</option>
+                                                            <option value="24" {{ ($vehiculo->horas_corte_ruta ?? 24) == 24 ? 'selected' : '' }}>Cada 24 horas (1 Día)</option>
+                                                            <option value="48" {{ ($vehiculo->horas_corte_ruta ?? 24) == 48 ? 'selected' : '' }}>Cada 48 horas (2 Días)</option>
+                                                            <option value="72" {{ ($vehiculo->horas_corte_ruta ?? 24) == 72 ? 'selected' : '' }}>Cada 72 horas (3 Días)</option>
+                                                            <option value="168" {{ ($vehiculo->horas_corte_ruta ?? 24) == 168 ? 'selected' : '' }}>Cada 168 horas (1 Semana)</option>
+                                                        </select>
+                                                    </div>
+
+                                                    <div class="flex justify-end gap-2">
+                                                        <button type="button" @click="openCorte = false" class="px-4 py-2 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">Cancelar</button>
+                                                        <button type="submit" class="px-4 py-2 text-xs font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors shadow-sm">Guardar Cambios</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </template>
 
                                     @include('vehiculos.show', ['vehiculo' => $vehiculo])
                                     @include('vehiculos.edit', ['vehiculo' => $vehiculo])
