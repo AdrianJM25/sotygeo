@@ -17,7 +17,8 @@ class GpsController extends Controller
 {
     public function traccar(Request $request)
     {
-        $imei = $request->query('id');
+        // Cambiado de query() a input() para aceptar peticiones GET y POST sin error 400
+        $imei = $request->input('id');
 
         if (!$imei) {
             return response('Falta ID (IMEI)', 400);
@@ -30,12 +31,12 @@ class GpsController extends Controller
             return response('Dispositivo no registrado en SotyGeo', 404);
         }
 
-        $lat = $request->query('lat');
-        $lon = $request->query('lon');
-        $velocidadKmh = $request->query('speed', 0) * 1.852;
+        $lat = $request->input('lat');
+        $lon = $request->input('lon');
+        $velocidadKmh = $request->input('speed', 0) * 1.852;
         
-        $fechaGps = $request->query('timestamp') 
-            ? Carbon::createFromTimestamp($request->query('timestamp')) 
+        $fechaGps = $request->input('timestamp') 
+            ? Carbon::createFromTimestamp($request->input('timestamp')) 
             : now();
 
         // Guardar historial de ruta
@@ -46,9 +47,9 @@ class GpsController extends Controller
             'longitud' => $lon,
             'punto' => DB::raw("ST_GeomFromText('POINT($lon $lat)', 4326)"),
             'velocidad' => $velocidadKmh,
-            'altitud' => $request->query('altitude', 0),
-            'rumbo' => $request->query('bearing', 0),
-            'porcentaje_bateria' => $request->query('batt'),
+            'altitud' => $request->input('altitude', 0),
+            'rumbo' => $request->input('bearing', 0),
+            'porcentaje_bateria' => $request->input('batt'),
             'fecha_gps' => $fechaGps,
         ]);
 
