@@ -83,27 +83,29 @@
             <!-- ================= DATOS DEL USUARIO ================= -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-                <!-- SECCIÓN MULTI-TENANT (EMPRESA) -->
-                @role('Super Administrador')
-                    <div class="md:col-span-2 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100">
-                        <label class="block mb-2 text-sm font-medium text-gray-900">Empresa / Cliente Asociado</label>
-                        <select name="empresa_id" class="bg-white border {{ $errors->has('empresa_id') ? 'border-red-500' : 'border-gray-300' }} text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5">
-                            <option value="">-- Interno (Personal de SOTyTECH) --</option>
-                            @foreach($empresas as $emp)
-                                <option value="{{ $emp->id }}" {{ old('empresa_id') == $emp->id ? 'selected' : '' }}>
-                                    {{ $emp->nombre }} (RFC: {{ $emp->rfc ?? 'N/D' }})
-                                </option>
-                            @endforeach
-                        </select>
-                        @error('empresa_id') <span class="text-xs text-red-600 mt-1 block">{{ $message }}</span> @enderror
-                    </div>
-                @else
-                    <div class="md:col-span-2 bg-gray-50/50 p-3 rounded-xl border border-gray-200">
-                        <label class="block mb-2 text-sm font-medium text-gray-500">Empresa / Cliente Asociado</label>
-                        <input type="text" value="{{ auth()->user()->empresa->nombre ?? 'N/D' }}" disabled class="bg-gray-100 border border-gray-300 text-gray-500 text-sm rounded-lg block w-full p-2.5 cursor-not-allowed">
-                        <span class="text-xs text-gray-400 mt-1 block">El usuario se registrará automáticamente en tu corporativo.</span>
-                    </div>
-                @endrole
+                <!-- ================= SECCIÓN EMPRESA OBLIGATORIA ================= -->
+@role('Super Administrador')
+    <div class="md:col-span-2 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100">
+        <label class="block mb-2 text-sm font-medium text-gray-900">Empresa Asociada <span class="text-red-500">*</span></label>
+        <select name="empresa_id" required class="bg-white border {{ $errors->has('empresa_id') ? 'border-red-500' : 'border-gray-300' }} text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5">
+            <option value="">-- Seleccionar Empresa --</option>
+            @foreach($empresas as $emp)
+                <option value="{{ $emp->id }}" {{ old('empresa_id') == $emp->id ? 'selected' : '' }}>
+                    {{ $emp->nombre }} (RFC: {{ $emp->rfc ?? 'N/D' }})
+                </option>
+            @endforeach
+        </select>
+        @error('empresa_id') <span class="text-xs text-red-600 mt-1 block">{{ $message }}</span> @enderror
+    </div>
+@else
+    <div class="md:col-span-2 bg-gray-50/50 p-3 rounded-xl border border-gray-200">
+        <label class="block mb-2 text-sm font-medium text-gray-500">Empresa Asociada</label>
+        <input type="text" value="{{ auth()->user()->empresa->nombre ?? 'N/D' }}" disabled class="bg-gray-100 border border-gray-300 text-gray-500 text-sm rounded-lg block w-full p-2.5 cursor-not-allowed">
+        <!-- Input oculto para garantizar que siempre viaje el ID de la empresa del usuario actual -->
+        <input type="hidden" name="empresa_id" value="{{ auth()->user()->empresa_id }}">
+        <span class="text-xs text-gray-400 mt-1 block">El usuario se registrará automáticamente en tu corporativo.</span>
+    </div>
+@endrole
 
                 <div>
                     <label class="block mb-2 text-sm font-medium text-gray-900">Nombre(s)</label>

@@ -10,6 +10,11 @@
         </div>
     </x-slot>
 
+    <!-- Hojas de estilo de Leaflet -->
+    @push('styles')
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    @endpush
+
     <div class="py-6">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
             
@@ -44,60 +49,59 @@
                         <span class="text-xs text-gray-500 block">Fecha consultada:</span>
                         <span class="text-sm font-medium text-gray-900">{{ $fechaConsulta->format('d/m/Y') }}</span>
                     </div>
-                    <!-- Puedes agregar más métricas aquí conforme las calcules -->
                 </div>
 
                 <!-- El Mapa (3 columnas) -->
-                <div class="md:col-span-3 bg-white overflow-hidden shadow-sm sm:rounded-lg p-2">
-                    <div id="mapa-historial" style="height: 550px; width: 100%;" class="rounded-lg z-0"></div>
+                <div class="md:col-span-3 bg-white overflow-hidden shadow-sm sm:rounded-lg p-2 relative z-0">
+                    <div id="mapa-historial" style="height: 550px; width: 100%;" class="rounded-lg"></div>
                 </div>
 
             </div>
-
         </div>
     </div>
 
-    <!-- Script para inicializar el mapa con Leaflet (Ejemplo conceptual) -->
+    <!-- Scripts de Leaflet e inicialización del mapa -->
     @push('scripts')
-    <!-- Asegúrate de incluir losCDN de Leaflet en tu layout principal o aquí -->
-    <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            // Coordenadas iniciales (si hay ubicaciones tomamos la primera, si no, México por defecto)
-            const ubicaciones = @json($ubicaciones);
-            
-            let latInicial = 19.4326; // Fallback
-            let lonInicial = -99.1332;
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                const ubicaciones = @json($ubicaciones);
+                
+                // Coordenadas por defecto (Centro de México) si no hay historial
+                let latInicial = 19.4326; 
+                let lonInicial = -99.1332;
 
-            if (ubicaciones.length > 0) {
-                latInicial = ubicaciones[0].latitud;
-                lonInicial = ubicaciones[0].longitud;
-            }
+                if (ubicaciones.length > 0) {
+                    latInicial = ubicaciones[0].latitud;
+                    lonInicial = ubicaciones[0].longitud;
+                }
 
-            // Inicializar Mapa Leaflet
-            const map = L.map('mapa-historial').setView([latInicial, lonInicial], 13);
+                // Inicializar Mapa Leaflet
+                const map = L.map('mapa-historial').setView([latInicial, lonInicial], 13);
 
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; OpenStreetMap contributors'
-            }).addTo(map);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(map);
 
-            if (ubicaciones.length > 0) {
-                // Mapear coordenadas para la polilínea
-                const latLngs = ubicaciones.map(u => [u.latitud, u.longitud]);
+                if (ubicaciones.length > 0) {
+                    // Mapear coordenadas para la polilínea
+                    const latLngs = ubicaciones.map(u => [parseFloat(u.latitud), parseFloat(u.longitud)]);
 
-                // Dibujar la línea de la ruta
-                const polyline = L.polyline(latLngs, {color: 'indigo', weight: 4}).addTo(map);
+                    // Dibujar la línea de la ruta
+                    const polyline = L.polyline(latLngs, {color: 'indigo', weight: 4}).addTo(map);
 
-                // Ajustar el zoom del mapa para que encaje toda la ruta del día
-                map.fitBounds(polyline.getBounds());
+                    // Ajustar el zoom del mapa para que encaje toda la ruta del día
+                    map.fitBounds(polyline.getBounds(), { padding: [20, 20] });
 
-                // Agregar marcadores de Inicio y Fin
-                L.marker(latLngs[0]).addTo(map).bindPopup("<b>Inicio de ruta</b><br>" + ubicaciones[0].fecha_gps);
-                L.marker(latLngs[latLngs.length - 1]).addTo(map).bindPopup("<b>Fin de ruta / Último punto</b><br>" + ubicaciones[ubicaciones.length - 1].fecha_gps);
-            } else {
-                alert("No hay registros de ruta para esta fecha.");
-            }
-        });
-    </script>
+                    // Agregar marcadores de Inicio y Fin
+                    L.marker(latLngs[0]).addTo(map).bindPopup("<b>Inicio de ruta</b><br>" + ubicaciones[0].fecha_gps);
+                    
+                    if (latLngs.length > 1) {
+                        L.marker(latLngs[latLngs.length - 1]).addTo(map).bindPopup("<b>Fin de ruta / Último punto</b><br>" + ubicaciones[ubicaciones.length - 1].fecha_gps);
+                    }
+                }
+            });
+        </script>
     @endpush
 </x-app-layout>
