@@ -1,4 +1,8 @@
 <x-app-layout>
+    <!-- 1. LIBRERÍAS DE LEAFLET (OBLIGATORIO) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
     <style>
         @keyframes cardIn {
             from { opacity: 0; transform: translateY(12px); }
@@ -48,7 +52,6 @@
         }
         .zona-tooltip::before { display: none; }
 
-        /* Estilo para scrollbar del panel de alertas */
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
@@ -59,7 +62,8 @@
         }
     </style>
 
-    <div class="flex flex-col gap-4 h-[calc(100vh-6rem)]">
+    <!-- Se ajustó la altura a min-h-[500px] en móviles y pantallas pequeñas para que el mapa no colapse -->
+    <div class="flex flex-col gap-4 min-h-[500px] h-[calc(100vh-6rem)]">
 
         <!-- Tarjetas de Resumen / KPIs -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
@@ -111,8 +115,8 @@
         <div class="flex flex-col lg:flex-row gap-4 flex-1 overflow-hidden">
             
             <!-- MAPA -->
-            <div class="card-in bg-white border border-gray-200 rounded-2xl shadow-sm flex-1 overflow-hidden relative flex flex-col" style="animation-delay: 0.20s;">
-                <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-white z-10 shrink-0">
+            <div class="card-in bg-white border border-gray-200 rounded-2xl shadow-sm flex-1 overflow-hidden relative flex flex-col min-h-[400px] lg:min-h-0" style="animation-delay: 0.20s;">
+                <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-white z-[400] shrink-0">
                     <h2 class="text-base font-bold text-gray-800 flex items-center gap-2">
                         <span class="relative flex w-2.5 h-2.5">
                             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -124,11 +128,12 @@
                         Actualización cada 5s · <span id="ultima-actualizacion">esperando datos…</span>
                     </span>
                 </div>
-                <div id="mapa-rastreo" class="w-full flex-1 z-0"></div>
+                <!-- 2. z-0 crítico y min-h para que Leaflet no entre en conflicto con el index de Tailwind -->
+                <div id="mapa-rastreo" class="w-full flex-1 z-0 min-h-[300px]"></div>
             </div>
 
             <!-- PANEL DE ALERTAS -->
-            <div class="card-in bg-white border border-gray-200 rounded-2xl shadow-sm w-full lg:w-96 flex flex-col shrink-0" style="animation-delay: 0.25s;">
+            <div class="card-in bg-white border border-gray-200 rounded-2xl shadow-sm w-full lg:w-96 flex flex-col shrink-0 min-h-[300px] lg:min-h-0" style="animation-delay: 0.25s;">
                 <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-white shrink-0">
                     <h2 class="text-base font-bold text-gray-800 flex items-center gap-2">
                         <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
@@ -154,6 +159,11 @@
                 maxZoom: 19,
                 attribution: '© OpenStreetMap - SotyGeo'
             }).addTo(map);
+
+            // 3. RECÁLCULO OBLIGATORIO DE DIMENSIONES AL ABRIR LA VISTA
+            setTimeout(function() {
+                map.invalidateSize();
+            }, 300);
 
             var marcadores = {};
             var ultimaActualizacionTs = null;
@@ -281,7 +291,6 @@
                     });
             }
 
-            // ===== Carga dinámica del Panel de Alertas =====
             function cargarAlertas() {
                 fetch('{{ route("api.alertas.recientes") }}')
                     .then(r => r.json())
@@ -334,7 +343,7 @@
             cargarAlertas();
 
             setInterval(actualizarUbicaciones, 5000);
-            setInterval(cargarAlertas, 10000); // Actualiza alertas cada 10 segundos
+            setInterval(cargarAlertas, 10000);
         });
     </script>
 </x-app-layout>
