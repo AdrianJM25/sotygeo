@@ -9,12 +9,8 @@ use App\Http\Controllers\VehiculoController;
 use App\Http\Controllers\FlotillaController;
 use App\Http\Controllers\EmpresaController;
 use App\Http\Controllers\RutaController;
-use App\Http\Controllers\Api\GpsController;
 use App\Http\Controllers\Api\DashboardApiController;
 use App\Http\Controllers\EventoGeocercaController;
-
-// Webhook para recepción de ubicación GPS (Traccar)
-Route::get('/traccar', [GpsController::class, 'traccar']);
 
 // Landing page comercial (welcome.blade.php)
 Route::get('/', function () {
@@ -31,9 +27,13 @@ Route::middleware('auth')->group(function () {
     // ==========================================
     // API INTERNA (Dashboard y Mapas)
     // ==========================================
-    Route::get('/api/vehiculos/en-vivo', [DashboardApiController::class, 'vehiculosEnVivo'])->name('api.vehiculos.en-vivo');
-    Route::get('/api/zonas-en-vivo', [DashboardApiController::class, 'zonasEnVivo'])->name('api.zonas.en-vivo');
-Route::get('/api/alertas/recientes', [DashboardApiController::class, 'alertasRecientes'])->name('api.alertas.recientes');
+    // Utilizamos 'prefix' y 'name' para agruparlas limpiamente y evitar escribir '/api/' a mano.
+    Route::prefix('api-interno')->name('api.')->group(function () {
+        Route::get('/vehiculos/en-vivo', [DashboardApiController::class, 'vehiculosEnVivo'])->name('vehiculos.en-vivo');
+        Route::get('/zonas/en-vivo', [DashboardApiController::class, 'zonasEnVivo'])->name('zonas.en-vivo');
+        Route::get('/alertas/recientes', [DashboardApiController::class, 'alertasRecientes'])->name('alertas.recientes');
+    });
+
     // ==========================================
     // PERFIL DE USUARIO
     // ==========================================
