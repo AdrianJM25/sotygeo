@@ -1,4 +1,4 @@
-¿¿<!-- ================= MODAL DE DETALLES (SHOW) ================= -->
+<!-- ================= MODAL DE DETALLES (SHOW) ================= -->
 <div x-show="openShow" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center p-4 text-left">
             
     <div x-show="openShow" x-transition.opacity @click="openShow = false" class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm"></div>

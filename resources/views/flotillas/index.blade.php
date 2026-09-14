@@ -1,4 +1,4 @@
-¿<x-app-layout>
+<x-app-layout>
     <style>
         @keyframes rowIn {
             from { opacity: 0; transform: translateY(6px); }
