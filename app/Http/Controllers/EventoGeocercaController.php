@@ -13,9 +13,8 @@ class EventoGeocercaController extends Controller
     {
         $user = auth()->user();
 
-        // Si en tu modelo EventoGeocerca la relación se llama 'zona', cambia 'geocerca' por 'zona' 
-        // y en tu vista blade cambia $evento->geocerca->nombre por $evento->zona->nombre.
-        $query = EventoGeocerca::with(['vehiculo', 'geocerca'])->latest('created_at');
+        // CORRECCIÓN 1: Llamamos a la relación 'zona' en lugar de 'geocerca'
+        $query = EventoGeocerca::with(['vehiculo', 'zona'])->latest('fecha_entrada');
 
         // Scoping Multi-Tenant
         if ($user->hasRole('Cliente Individual')) {
@@ -37,8 +36,8 @@ class EventoGeocercaController extends Controller
         }
 
         if ($request->filled('geocerca_id')) {
-            // Cambia 'geocerca_id' por 'zona_id' si así se llama la columna en tu base de datos
-            $query->where('geocerca_id', $request->geocerca_id); 
+            // CORRECCIÓN 2: Apuntamos a la columna correcta 'zona_id'
+            $query->where('zona_id', $request->geocerca_id); 
         }
 
         if ($request->filled('tipo_evento')) {
@@ -46,11 +45,11 @@ class EventoGeocercaController extends Controller
         }
 
         if ($request->filled('fecha_inicio')) {
-            $query->whereDate('created_at', '>=', $request->fecha_inicio);
+            $query->whereDate('fecha_entrada', '>=', $request->fecha_inicio);
         }
 
         if ($request->filled('fecha_fin')) {
-            $query->whereDate('created_at', '<=', $request->fecha_fin);
+            $query->whereDate('fecha_entrada', '<=', $request->fecha_fin);
         }
 
         $eventos = $query->paginate(20);
