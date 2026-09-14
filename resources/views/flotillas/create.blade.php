@@ -1,6 +1,5 @@
 <!-- ================= MODAL DE CREACIÓN ================= -->
 <div x-show="openCreate" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-            
     <div x-show="openCreate" x-transition.opacity @click="openCreate = false" class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm"></div>
 
     <div x-show="openCreate"
@@ -19,16 +18,26 @@
             </button>
         </div>
 
-        <form action="{{ route('flotillas.store') }}" method="POST" class="p-6 space-y-6">
+        <!-- AQUÍ INICIA LA MAGIA DE ALPINE -->
+        <form action="{{ route('flotillas.store') }}" method="POST" class="p-6 space-y-6"
+              x-data="{
+                  empresa_id: '{{ old('empresa_id', auth()->user()->hasRole('Super Administrador') ? '' : auth()->user()->empresa_id) }}',
+                  vehiculos: @js($vehiculos ?? []),
+                  get vehiculosFiltrados() {
+                      if (!this.empresa_id) return [];
+                      // Filtra: Que pertenezcan a la empresa Y que no estén asignados a otra flotilla
+                      return this.vehiculos.filter(v => v.empresa_id == this.empresa_id && v.flotilla_id === null);
+                  }
+              }">
             @csrf
 
             <div class="space-y-4">
-                
                 <!-- SECCIÓN MULTI-TENANT (EMPRESA) -->
                 @role('Super Administrador')
                     <div class="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 mb-4">
                         <label class="block mb-2 text-sm font-medium text-gray-900">Empresa / Cliente Dueño</label>
-                        <select name="empresa_id" required class="bg-white border {{ $errors->has('empresa_id') && !old('is_edit') ? 'border-red-500' : 'border-gray-300' }} text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5">
+                        <!-- Agregado x-model para reactividad -->
+                        <select name="empresa_id" x-model="empresa_id" required class="bg-white border {{ $errors->has('empresa_id') && !old('is_edit') ? 'border-red-500' : 'border-gray-300' }} text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5">
                             <option value="">-- Seleccionar Empresa --</option>
                             @foreach($empresas as $emp)
                                 <option value="{{ $emp->id }}" {{ old('empresa_id') == $emp->id ? 'selected' : '' }}>
@@ -42,6 +51,7 @@
                     <div class="bg-gray-50/50 p-3 rounded-xl border border-gray-200 mb-4">
                         <label class="block mb-2 text-sm font-medium text-gray-500">Empresa / Corporativo</label>
                         <input type="text" value="{{ auth()->user()->empresa->nombre ?? 'N/D' }}" disabled class="bg-gray-100 border border-gray-300 text-gray-500 text-sm rounded-lg block w-full p-2.5 cursor-not-allowed">
+                        <input type="hidden" name="empresa_id" :value="empresa_id">
                     </div>
                 @endrole
 
@@ -61,7 +71,31 @@
                             </option>
                         @endforeach
                     </select>
-                    @if($errors->has('user_id') && !old('is_edit')) <span class="text-xs text-red-600 mt-1 block">{{ $errors->first('user_id') }}</span> @endif
+                </div>
+
+                <!-- SECCIÓN ASIGNACIÓN DE VEHÍCULOS -->
+                <div>
+                    <label class="block mb-2 text-sm font-medium text-gray-900">Vehículos a asignar</label>
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 max-h-52 overflow-y-auto shadow-inner">
+                        
+                        <template x-if="vehiculosFiltrados.length === 0">
+                            <div class="text-center py-4">
+                                <p class="text-sm text-gray-500">No hay vehículos disponibles o sin asignar para esta empresa.</p>
+                            </div>
+                        </template>
+
+                        <div class="space-y-2">
+                            <template x-for="vehiculo in vehiculosFiltrados" :key="vehiculo.id">
+                                <label class="flex items-center p-3 bg-white border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors shadow-sm">
+                                    <input type="checkbox" name="vehiculos[]" :value="vehiculo.id" class="w-4 h-4 text-gray-900 bg-gray-100 border-gray-300 rounded focus:ring-gray-900">
+                                    <div class="ml-3">
+                                        <span class="block text-sm font-medium text-gray-900" x-text="vehiculo.nombre"></span>
+                                        <span class="block text-xs text-gray-500" x-text="'Placas: ' + (vehiculo.placas || 'N/D')"></span>
+                                    </div>
+                                </label>
+                            </template>
+                        </div>
+                    </div>
                 </div>
 
                 <div>
@@ -71,12 +105,8 @@
             </div>
 
             <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                <button type="button" @click="openCreate = false" class="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-                    Cancelar
-                </button>
-                <button type="submit" class="px-5 py-2.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors shadow-sm">
-                    Guardar Flotilla
-                </button>
+                <button type="button" @click="openCreate = false" class="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Cancelar</button>
+                <button type="submit" class="px-5 py-2.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors shadow-sm">Guardar Flotilla</button>
             </div>
         </form>
     </div>

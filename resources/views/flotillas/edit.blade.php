@@ -19,7 +19,22 @@
             </button>
         </div>
 
-        <form action="{{ route('flotillas.update', $flotilla) }}" method="POST" class="p-6 space-y-6">
+        <!-- SE AGREGA EL X-DATA AL FORMULARIO PARA REACTIVIDAD -->
+        <form action="{{ route('flotillas.update', $flotilla) }}" method="POST" class="p-6 space-y-6"
+              x-data="{
+                  empresa_id: '{{ old('empresa_id', $flotilla->empresa_id) }}',
+                  flotilla_id: {{ $flotilla->id }},
+                  vehiculos: @js($vehiculos ?? []),
+                  vehiculosAsignados: @js($flotilla->vehiculos->pluck('id')->toArray()),
+                  get vehiculosFiltrados() {
+                      if (!this.empresa_id) return [];
+                      // Filtra: Vehículos de la empresa seleccionada que no tengan flotilla O que ya pertenezcan a esta
+                      return this.vehiculos.filter(v => 
+                          v.empresa_id == this.empresa_id && 
+                          (v.flotilla_id === null || v.flotilla_id === this.flotilla_id)
+                      );
+                  }
+              }">
             @csrf
             @method('PUT')
             
@@ -31,7 +46,8 @@
                 @role('Super Administrador')
                     <div class="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 mb-4">
                         <label class="block mb-2 text-sm font-medium text-gray-900">Empresa / Cliente Dueño</label>
-                        <select name="empresa_id" required class="bg-white border {{ $errors->has('empresa_id') && old('is_edit') == $flotilla->id ? 'border-red-500' : 'border-gray-300' }} text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5">
+                        <!-- SE AGREGA X-MODEL PARA ESCUCHAR CAMBIOS -->
+                        <select name="empresa_id" x-model="empresa_id" required class="bg-white border {{ $errors->has('empresa_id') && old('is_edit') == $flotilla->id ? 'border-red-500' : 'border-gray-300' }} text-gray-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5">
                             <option value="">-- Seleccionar Empresa --</option>
                             @foreach($empresas as $emp)
                                 <option value="{{ $emp->id }}" {{ old('empresa_id', $flotilla->empresa_id) == $emp->id ? 'selected' : '' }}>
@@ -45,6 +61,7 @@
                     <div class="bg-gray-50/50 p-3 rounded-xl border border-gray-200 mb-4">
                         <label class="block mb-2 text-sm font-medium text-gray-500">Empresa / Corporativo</label>
                         <input type="text" value="{{ $flotilla->empresa->nombre ?? 'N/D' }}" disabled class="bg-gray-100 border border-gray-300 text-gray-500 text-sm rounded-lg block w-full p-2.5 cursor-not-allowed">
+                        <input type="hidden" name="empresa_id" :value="empresa_id">
                     </div>
                 @endrole
 
@@ -65,6 +82,33 @@
                         @endforeach
                     </select>
                     @if($errors->has('user_id') && old('is_edit') == $flotilla->id) <span class="text-xs text-red-600 mt-1 block">{{ $errors->first('user_id') }}</span> @endif
+                </div>
+
+                <!-- SECCIÓN ASIGNACIÓN DE VEHÍCULOS (NUEVA) -->
+                <div>
+                    <label class="block mb-2 text-sm font-medium text-gray-900">Vehículos asignados y disponibles</label>
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 max-h-52 overflow-y-auto shadow-inner">
+                        
+                        <template x-if="vehiculosFiltrados.length === 0">
+                            <div class="text-center py-4">
+                                <p class="text-sm text-gray-500">No hay vehículos disponibles o asignados a esta empresa.</p>
+                            </div>
+                        </template>
+
+                        <div class="space-y-2">
+                            <template x-for="vehiculo in vehiculosFiltrados" :key="vehiculo.id">
+                                <label class="flex items-center p-3 bg-white border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors shadow-sm">
+                                    <input type="checkbox" name="vehiculos[]" :value="vehiculo.id" 
+                                           :checked="vehiculosAsignados.includes(vehiculo.id)"
+                                           class="w-4 h-4 text-gray-900 bg-gray-100 border-gray-300 rounded focus:ring-gray-900">
+                                    <div class="ml-3">
+                                        <span class="block text-sm font-medium text-gray-900" x-text="vehiculo.nombre"></span>
+                                        <span class="block text-xs text-gray-500" x-text="'Placas: ' + (vehiculo.placas || 'N/D')"></span>
+                                    </div>
+                                </label>
+                            </template>
+                        </div>
+                    </div>
                 </div>
 
                 <div>
