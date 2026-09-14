@@ -4,15 +4,15 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\GpsController;
 use App\Http\Controllers\Api\RutaController;
-use App\Http\Controllers\Api\ReceptorGpsController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
 // ==========================================
-// RECEPCIÓN DE GPS (Traccar App / Hardware)
+// RECEPCIÓN DE GPS (Traccar / App Cliente)
 // ==========================================
+// Usamos Route::any para que acepte tanto GET como POST sin errores 405
 Route::any('/traccar', [GpsController::class, 'traccar']);
-Route::any('/receptor', [ReceptorGpsController::class, 'recibirTramas']);
+
 Route::post('/rutas', [RutaController::class, 'store']);
