@@ -1,21 +1,4 @@
 <x-app-layout>
-    {{--
-        ────────────────────────────────────────────────────────────────
-        REQUISITO IMPORTANTE (una sola vez, a nivel de proyecto):
-        Agrega esto al <head> de tu layout principal
-        (resources/views/layouts/app.blade.php o el componente x-app-layout),
-        no aquí, porque este archivo solo renderiza el <body>.
-
-        <link rel="preconnect" href="https://fonts.googleapis.com">
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;500;600;700&family=Ubuntu:wght@400;500;700&display=swap" rel="stylesheet">
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
-
-        Paleta usada en esta vista (basada en el diseño SotyGeo):
-        #003d82 azul oscuro · #0056b3 azul primario · #3380d0 azul claro
-        ────────────────────────────────────────────────────────────────
-    --}}
-
     <style>
         .font-heading { font-family: 'Josefin Sans', sans-serif; }
         .font-body    { font-family: 'Ubuntu', sans-serif; }
@@ -26,8 +9,12 @@
         }
     </style>
 
-    <!-- Estado global para el modal de Crear -->
-    <div x-data="{ openCreate: {{ $errors->any() && !old('is_edit') ? 'true' : 'false' }} }}" class="font-body">
+    <!-- Estado global centralizado para todos los modales de la vista -->
+    <div x-data="{ 
+        openCreate: {{ $errors->any() && !old('is_edit') ? 'true' : 'false' }},
+        openShowId: null,
+        openEditId: {{ $errors->any() && old('is_edit') ? old('is_edit') : 'null' }}
+    }" class="font-body">
 
         <!-- Tarjeta Principal -->
         <div class="bg-white overflow-hidden shadow-sm shadow-black/5 border border-[#0056b3]/20 rounded-2xl">
@@ -74,7 +61,6 @@
                     <tbody class="divide-y divide-[#0056b3]/10">
                         @forelse ($empresas as $empresa)
                             @php
-                                // Avatar de iniciales: alterna 3 tonos de la paleta azul según la fila.
                                 $avatarPalette = [
                                     ['bg' => '#0056b3', 'text' => '#FFFFFF'],
                                     ['bg' => '#3380d0', 'text' => '#FFFFFF'],
@@ -82,7 +68,7 @@
                                 ];
                                 $avatarColor = $avatarPalette[$loop->index % count($avatarPalette)];
                             @endphp
-                            <tr x-data="{ openEdit: {{ $errors->any() && old('is_edit') == $empresa->id ? 'true' : 'false' }}, openShow: false }}" class="hover:bg-blue-50/30 transition-colors bg-white">
+                            <tr class="hover:bg-blue-50/30 transition-colors bg-white">
 
                                 <td class="px-6 py-4">
                                     <div class="flex items-center gap-3">
@@ -137,16 +123,16 @@
                                     @endif
                                 </td>
 
-                                <!-- CELDA DE ACCIONES -->
+                                <!-- CELDA DE ACCIONES (Solo botones que activan el ID correspondiente) -->
                                 <td class="px-6 py-4 text-right whitespace-nowrap">
                                     <div class="inline-flex items-center gap-1">
                                         <!-- Botón Ver Detalles (Show) -->
-                                        <button @click="openShow = true" title="Ver detalles de la cuenta" class="p-2 text-gray-500 hover:text-[#0056b3] hover:bg-[#0056b3]/10 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0056b3]">
+                                        <button @click="openShowId = {{ $empresa->id }}" title="Ver detalles de la cuenta" class="p-2 text-gray-500 hover:text-[#0056b3] hover:bg-[#0056b3]/10 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0056b3]">
                                             <span class="material-symbols-outlined text-[20px]">visibility</span>
                                         </button>
 
                                         <!-- Botón Editar -->
-                                        <button @click="openEdit = true" title="Editar empresa" class="p-2 text-gray-500 hover:text-[#0056b3] hover:bg-[#0056b3]/10 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0056b3]">
+                                        <button @click="openEditId = {{ $empresa->id }}" title="Editar empresa" class="p-2 text-gray-500 hover:text-[#0056b3] hover:bg-[#0056b3]/10 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0056b3]">
                                             <span class="material-symbols-outlined text-[20px]">edit</span>
                                         </button>
 
@@ -160,10 +146,6 @@
                                             </button>
                                         </form>
                                     </div>
-
-                                    <!-- Modales DENTRO del TD -->
-                                    @include('empresas.show', ['empresa' => $empresa])
-                                    @include('empresas.edit', ['empresa' => $empresa])
                                 </td>
 
                             </tr>
@@ -186,7 +168,20 @@
             @endif
         </div>
 
-        <!-- Inyectamos el modal de creación -->
+        <!-- MODALES RENDERIZADOS FUERA DE LA TABLA (Para evitar recortes y conflictos de posición fija) -->
+        @foreach($empresas as $empresa)
+            <!-- Modal Show -->
+            <div x-show="openShowId === {{ $empresa->id }}" style="display: none;">
+                @include('empresas.show', ['empresa' => $empresa])
+            </div>
+
+            <!-- Modal Edit -->
+            <div x-show="openEditId === {{ $empresa->id }}" style="display: none;">
+                @include('empresas.edit', ['empresa' => $empresa])
+            </div>
+        @endforeach
+
+        <!-- Modal Create -->
         @include('empresas.create')
 
     </div>
