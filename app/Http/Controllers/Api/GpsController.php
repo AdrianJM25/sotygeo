@@ -64,68 +64,89 @@ class GpsController extends Controller
         return response('OK', 200);
     }
 
-    private function procesarGeocercas(Vehiculo $vehiculo, $lat, $lng, Carbon $fechaGps)
-    {
-        $puntoActual = "POINT($lng $lat)";
-        
-        $zonasDentro = $vehiculo->zonas()->whereRaw(
-            "ST_Contains(zonas.poligono, ST_GeomFromText(?, 4326))", 
-            [$puntoActual]
-        )->get();
-        
-        $idsZonasDentro = $zonasDentro->pluck('id')->toArray();
+   private function procesarGeocercas(Vehiculo $vehiculo, $lat, $lng, Carbon $fechaGps)
+{
+    $puntoActual = "POINT($lng $lat)";
 
-        $eventosAbiertos = EventoGeocerca::where('vehiculo_id', $vehiculo->id)
-                                         ->whereNull('fecha_salida')
-                                         ->get();
-        $idsZonasAbiertas = $eventosAbiertos->pluck('zona_id')->toArray();
+    $zonasDentro = $vehiculo->zonas()->whereRaw(
+        "ST_Contains(zonas.poligono, ST_GeomFromText(?, 4326))",
+        [$puntoActual]
+    )->get();
 
-        // Procesar Salidas
-        foreach ($eventosAbiertos as $evento) {
-            if (!in_array($evento->zona_id, $idsZonasDentro)) {
-                $duracion = $fechaGps->diffInMinutes($evento->fecha_entrada);
-                
-                $evento->update([
-                    'fecha_salida' => $fechaGps,
-                    'latitud_salida' => $lat,
-                    'longitud_salida' => $lng,
-                    'duracion_minutos' => $duracion,
-                ]);
+    $idsZonasDentro = $zonasDentro->pluck('id')->toArray();
 
-                $regla = $evento->zona->vehiculos()->where('vehiculo_id', $vehiculo->id)->first()?->pivot;
-                if ($regla && $regla->notificar_salida) {
-                    Alerta::create([
-                        'vehiculo_id' => $vehiculo->id,
-                        'tipo' => 'geocerca_salida',
-                        'mensaje' => "El vehículo {$vehiculo->nombre} salió de la zona: {$evento->zona->nombre}. Duración: {$duracion} min.",
-                    ]);
-                }
-            }
-        }
+    $eventosAbiertos = EventoGeocerca::with('zona')
+                                     ->where('vehiculo_id', $vehiculo->id)
+                                     ->whereNull('fecha_salida')
+                                     ->get();
+    $idsZonasAbiertas = $eventosAbiertos->pluck('zona_id')->toArray();
 
-        // Procesar Entradas
-        foreach ($zonasDentro as $zona) {
-            if (!in_array($zona->id, $idsZonasAbiertas)) {
-                $regla = $zona->pivot;
-                $tipoEvento = ($regla && $regla->tipo_regla === 'restringida') ? 'violacion_restringida' : 'normal';
+    // ===== Procesar Salidas =====
+    foreach ($eventosAbiertos as $evento) {
+        if (!in_array($evento->zona_id, $idsZonasDentro)) {
+            $duracion = $fechaGps->diffInMinutes($evento->fecha_entrada);
 
-                EventoGeocerca::create([
+            $regla = $evento->zona->vehiculos()->where('vehiculo_id', $vehiculo->id)->first()?->pivot;
+            $seNotificoSalida = $regla && $regla->notificar_salida;
+
+            // Regla de permanencia mínima: se evalúa en el instante mismo de la salida,
+            // no necesita cron porque el disparador (el ping que detecta que ya no está) ya existe.
+            $incumplioMinima = $regla
+                && $regla->permanencia_minima_minutos
+                && $duracion < $regla->permanencia_minima_minutos;
+
+            $evento->update([
+                'fecha_salida' => $fechaGps,
+                'latitud_salida' => $lat,
+                'longitud_salida' => $lng,
+                'duracion_minutos' => $duracion,
+                'tipo_evento' => $incumplioMinima ? 'salida_anticipada' : $evento->tipo_evento,
+                'alerta_generada' => $evento->alerta_generada || $seNotificoSalida || $incumplioMinima,
+            ]);
+
+            if ($seNotificoSalida) {
+                Alerta::create([
                     'vehiculo_id' => $vehiculo->id,
-                    'zona_id' => $zona->id,
-                    'fecha_entrada' => $fechaGps,
-                    'latitud_entrada' => $lat,
-                    'longitud_entrada' => $lng,
-                    'tipo_evento' => $tipoEvento,
+                    'tipo' => 'geocerca_salida',
+                    'mensaje' => "El vehículo {$vehiculo->nombre} salió de la zona: {$evento->zona->nombre}. Duración: {$duracion} min.",
                 ]);
+            }
 
-                if ($regla && $regla->notificar_entrada) {
-                    Alerta::create([
-                        'vehiculo_id' => $vehiculo->id,
-                        'tipo' => 'geocerca_entrada',
-                        'mensaje' => "El vehículo {$vehiculo->nombre} ingresó a la zona: {$zona->nombre}.",
-                    ]);
-                }
+            if ($incumplioMinima) {
+                Alerta::create([
+                    'vehiculo_id' => $vehiculo->id,
+                    'tipo' => 'permanencia_minima',
+                    'mensaje' => "El vehículo {$vehiculo->nombre} salió de la zona {$evento->zona->nombre} tras solo {$duracion} min (mínimo requerido: {$regla->permanencia_minima_minutos} min).",
+                ]);
             }
         }
     }
+
+    // ===== Procesar Entradas =====
+    foreach ($zonasDentro as $zona) {
+        if (!in_array($zona->id, $idsZonasAbiertas)) {
+            $regla = $zona->pivot;
+            $tipoEvento = ($regla && $regla->tipo_regla === 'restringida') ? 'violacion_restringida' : 'normal';
+            $seNotificoEntrada = $regla && $regla->notificar_entrada;
+
+            EventoGeocerca::create([
+                'vehiculo_id' => $vehiculo->id,
+                'zona_id' => $zona->id,
+                'fecha_entrada' => $fechaGps,
+                'latitud_entrada' => $lat,
+                'longitud_entrada' => $lng,
+                'tipo_evento' => $tipoEvento,
+                'alerta_generada' => $seNotificoEntrada,
+            ]);
+
+            if ($seNotificoEntrada) {
+                Alerta::create([
+                    'vehiculo_id' => $vehiculo->id,
+                    'tipo' => 'geocerca_entrada',
+                    'mensaje' => "El vehículo {$vehiculo->nombre} ingresó a la zona: {$zona->nombre}.",
+                ]);
+            }
+        }
+    }
+}
 }

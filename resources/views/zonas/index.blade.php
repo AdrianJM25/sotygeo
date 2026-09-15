@@ -76,11 +76,12 @@
                 <!-- Tarjeta Formulario -->
                 <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
                     <div class="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                        <h3 class="font-bold text-slate-800 text-sm uppercase tracking-wider">Crear Nueva Zona</h3>
+                        <h3 id="titulo-formulario" class="font-bold text-slate-800 text-sm uppercase tracking-wider">Crear Nueva Zona</h3>
                     </div>
 
                     <form action="{{ route('zonas.store') }}" method="POST" id="form-zona" class="p-5 space-y-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
                         @csrf
+                        <input type="hidden" name="_method" id="metodo-form" value="POST">
                         <input type="hidden" name="coordenadas" id="input-coordenadas" required>
                         
                         <div>
@@ -98,7 +99,7 @@
                             </div>
                         </div>
 
-                        <!-- NUEVA SECCIÓN: ASIGNACIÓN DE VEHÍCULOS -->
+                        <!-- SECCIÓN: ASIGNACIÓN DE VEHÍCULOS -->
                         <div class="border-t border-slate-100 pt-4 mt-2">
                             <label class="block mb-2 text-xs font-semibold text-slate-600 uppercase">Asignar Vehículos y Alertas</label>
                             <div class="space-y-2">
@@ -146,11 +147,17 @@
                             <span>Utiliza las herramientas en la esquina superior izquierda del mapa para trazar el polígono antes de guardar.</span>
                         </div>
 
-                        <button type="submit" id="btn-guardar" disabled 
-                                class="w-full px-5 py-3 text-sm font-bold text-white bg-slate-900 rounded-xl hover:bg-slate-800 transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg>
-                            Guardar Geocerca
-                        </button>
+                        <div class="flex gap-3">
+                            <button type="submit" id="btn-guardar" disabled 
+                                    class="flex-1 px-5 py-3 text-sm font-bold text-white bg-slate-900 rounded-xl hover:bg-slate-800 transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg>
+                                Guardar Geocerca
+                            </button>
+                            <button type="button" id="btn-cancelar" onclick="cancelarEdicion()" 
+                                    class="hidden px-5 py-3 text-sm font-bold text-slate-700 bg-slate-100 rounded-xl hover:bg-slate-200 transition-all shadow-sm">
+                                Cancelar
+                            </button>
+                        </div>
                     </form>
                 </div>
 
@@ -178,6 +185,12 @@
                                 </button>
 
                                 <div class="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <!-- Botón de Editar -->
+                                    <button type="button" onclick="prepararEdicion({{ $zona->id }})" title="Editar zona" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                    </button>
+
+                                    <!-- Formulario Eliminar -->
                                     <form action="{{ route('zonas.destroy', $zona->id) }}" method="POST" onsubmit="return confirm('¿Eliminar definitivamente esta geocerca?');" class="inline-block">
                                         @csrf @method('DELETE')
                                         <button type="submit" title="Eliminar zona" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
@@ -206,7 +219,7 @@
         </div>
     </div>
 
-    <!-- Lógica JavaScript del Mapa Original -->
+    <!-- Lógica JavaScript -->
     <script>
         var capasMap = {}; 
 
@@ -234,7 +247,10 @@
                             }
                         }).bindPopup('<div class="font-sans font-bold text-slate-800">' + zona.nombre + '</div>').addTo(map);
 
-                        capasMap[zona.id] = layer;
+                        // Como L.geoJSON devuelve un FeatureGroup, obtenemos la primera capa (el polígono)
+                        var polyLayer = layer.getLayers()[0];
+                        capasMap[zona.id] = polyLayer;
+
                     } catch (err) {
                         console.error('Error parseando geojson para la zona:', zona.id, err);
                     }
@@ -297,14 +313,119 @@
                 if(capaActual) {
                     capaActual.setStyle({ color: e.target.value, fillColor: e.target.value });
                 }
+                // Actualizar el color de la capa en edición si la hay
+                Object.values(capasMap).forEach(l => {
+                    if(l.pm && l.pm.enabled()) {
+                        l.setStyle({ color: e.target.value, fillColor: e.target.value });
+                    }
+                });
             });
 
             window.enfocarZona = function(zonaId) {
                 if (capasMap[zonaId]) {
+                    // Para enfocar usamos el featureGroup original si existe, o calculamos bounds del polígono
                     var bounds = capasMap[zonaId].getBounds();
                     map.flyToBounds(bounds, { padding: [50, 50], maxZoom: 16, duration: 1.5 });
                     setTimeout(() => capasMap[zonaId].openPopup(), 1500);
                 }
+            };
+
+            // ---- NUEVA LÓGICA DE EDICIÓN ----
+
+            function layerToWKT(layer) {
+                var latlngs = layer.getLatLngs()[0];
+                var arr = [];
+                latlngs.forEach(ll => arr.push({ lat: ll.lat, lng: ll.lng }));
+                return JSON.stringify(arr);
+            }
+
+            window.prepararEdicion = function(zonaId) {
+                var zona = zonasGuardadas.find(z => z.id == zonaId);
+                if(!zona) return;
+
+                // 1. Preparar Formulario
+                document.getElementById('form-zona').action = `/zonas/${zona.id}`;
+                document.getElementById('metodo-form').value = 'PUT';
+                document.getElementById('titulo-formulario').innerText = 'Editar Zona: ' + zona.nombre;
+                document.getElementById('btn-cancelar').classList.remove('hidden');
+
+                document.querySelector('input[name="nombre"]').value = zona.nombre;
+                document.querySelector('input[name="color_hex"]').value = zona.color_hex || '#4F46E5';
+
+                // 2. Limpiar e inyectar vehículos
+                document.querySelectorAll('input[type="checkbox"][value]').forEach(cb => {
+                    if(cb.checked && cb.name.includes('vehiculos')) {
+                        cb.checked = false;
+                        cb.dispatchEvent(new Event('change'));
+                    }
+                });
+
+                if(zona.vehiculos && zona.vehiculos.length > 0) {
+                    zona.vehiculos.forEach(v => {
+                        let cb = document.querySelector(`input[type="checkbox"][value="${v.id}"]`);
+                        if(cb) {
+                            cb.checked = true;
+                            cb.dispatchEvent(new Event('change'));
+
+                            let baseName = cb.name.replace('[id]', ''); 
+                            let selectRegla = document.querySelector(`select[name="${baseName}[tipo_regla]"]`);
+                            let chkEntrada = document.querySelector(`input[name="${baseName}[notificar_entrada]"]`);
+                            let chkSalida = document.querySelector(`input[name="${baseName}[notificar_salida]"]`);
+
+                            if(selectRegla) selectRegla.value = v.pivot.tipo_regla;
+                            if(chkEntrada) chkEntrada.checked = (v.pivot.notificar_entrada == 1);
+                            if(chkSalida) chkSalida.checked = (v.pivot.notificar_salida == 1);
+                        }
+                    });
+                }
+
+                // 3. Preparar Mapa (Geoman)
+                if (capaActual) { 
+                    map.removeLayer(capaActual); 
+                    capaActual = null; 
+                }
+                
+                Object.values(capasMap).forEach(l => {
+                    if(l.pm) l.pm.disable();
+                });
+
+                let layerAEditar = capasMap[zona.id];
+                if(layerAEditar) {
+                    layerAEditar.pm.enable({ allowSelfIntersection: false });
+                    
+                    inputCoordenadas.value = layerToWKT(layerAEditar);
+                    btnGuardar.disabled = false;
+                    alertaDibujo.style.display = 'none';
+
+                    layerAEditar.on('pm:edit', function(e) {
+                        inputCoordenadas.value = layerToWKT(e.target);
+                    });
+                }
+
+                enfocarZona(zona.id);
+            };
+
+            window.cancelarEdicion = function() {
+                // 1. Resetear Formulario
+                document.getElementById('form-zona').reset();
+                document.getElementById('form-zona').action = "{{ route('zonas.store') }}";
+                document.getElementById('metodo-form').value = 'POST';
+                document.getElementById('titulo-formulario').innerText = 'Crear Nueva Zona';
+                document.getElementById('btn-cancelar').classList.add('hidden');
+                inputCoordenadas.value = '';
+                btnGuardar.disabled = true;
+                alertaDibujo.style.display = 'flex';
+
+                // Limpiar Alpine checkboxes
+                document.querySelectorAll('input[type="checkbox"][value]').forEach(cb => {
+                    if(cb.checked && cb.name.includes('vehiculos')) {
+                        cb.checked = false;
+                        cb.dispatchEvent(new Event('change'));
+                    }
+                });
+
+                // 2. Resetear Mapa (Lo más fácil para deshacer formas a medias es recargar)
+                window.location.reload();
             };
         });
     </script>

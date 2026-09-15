@@ -40,9 +40,6 @@ class Zona extends Model
     // RELACIONES DE GEOCERCAS Y EVENTOS
     // ==========================================
 
-    /**
-     * Vehículos asignados a esta geocerca con sus reglas específicas.
-     */
     public function vehiculos(): BelongsToMany
     {
         return $this->belongsToMany(Vehiculo::class, 'vehiculo_zona')
@@ -56,11 +53,29 @@ class Zona extends Model
                     ->withTimestamps();
     }
 
-    /**
-     * Historial de entradas/salidas registradas en esta zona.
-     */
     public function eventos(): HasMany
     {
         return $this->hasMany(EventoGeocerca::class, 'zona_id');
+    }
+
+    /**
+     * Regla de negocio central: una zona SOLO puede asignarse a un vehículo
+     * que pertenezca al mismo dueño (misma empresa, o mismo Cliente Individual).
+     * Úsalo antes de cualquier attach/sync en la tabla vehiculo_zona.
+     */
+    public function puedeAsignarseA(Vehiculo $vehiculo): bool
+    {
+        // Zona de un Cliente Individual: el vehículo debe ser del mismo usuario.
+        if ($this->user_id !== null) {
+            return $this->user_id === $vehiculo->user_id;
+        }
+
+        // Zona corporativa: el vehículo debe ser de la misma empresa.
+        if ($this->empresa_id !== null) {
+            return $this->empresa_id === $vehiculo->empresa_id;
+        }
+
+        // Zona sin dueño definido (no debería pasar, pero por seguridad se rechaza).
+        return false;
     }
 }

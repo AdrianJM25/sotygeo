@@ -16,9 +16,8 @@ class ZonaController extends Controller
     {
         $user = auth()->user();
 
-        // 1. Aplicar scoping Multi-Tenant
         $query = Zona::select(
-            'id', 'empresa_id', 'user_id', 'nombre', 'color_hex', 
+            'id', 'empresa_id', 'user_id', 'nombre', 'color_hex',
             DB::raw('ST_AsGeoJSON(poligono) as geojson'),
             'created_at'
         )->with(['vehiculos']);
@@ -48,7 +47,7 @@ class ZonaController extends Controller
         $request->validate([
             'nombre' => 'required|string|max:255',
             'color_hex' => 'required|string|max:7',
-            'coordenadas' => 'required|string', // Array JSON desde el mapa [ {lat, lng}, ... ]
+            'coordenadas' => 'required|string',
             'empresa_id' => $user->hasRole('Super Administrador') ? 'nullable|exists:empresas,id' : 'nullable',
             'user_id' => $user->hasRole('Super Administrador') ? 'nullable|exists:users,id' : 'nullable',
             'vehiculos' => 'nullable|array',
@@ -60,17 +59,14 @@ class ZonaController extends Controller
             'vehiculos.*.permanencia_maxima_minutos' => 'nullable|integer|min:1',
         ]);
 
-        // 1. Determinar pertenencia Multi-Tenant
         $empresa_id = $user->hasRole('Super Administrador') ? $request->empresa_id : ($user->hasRole('Cliente Individual') ? null : $user->empresa_id);
         $user_id = $user->hasRole('Super Administrador') ? $request->user_id : ($user->hasRole('Cliente Individual') ? $user->id : null);
 
-        // 2. Formatear Polígono Spatial (Lng Lat)
         $stringPoligono = $this->parsearCoordenadasAPolígono($request->coordenadas);
         if (!$stringPoligono) {
             return back()->withErrors(['coordenadas' => 'Debes dibujar un polígono válido con al menos 3 puntos.'])->withInput();
         }
 
-        // 3. Crear Geocerca
         $zona = Zona::create([
             'empresa_id' => $empresa_id,
             'user_id' => $user_id,
@@ -79,9 +75,12 @@ class ZonaController extends Controller
             'poligono' => DB::raw("ST_GeomFromText('$stringPoligono', 4326)")
         ]);
 
-        // 4. Asignar Vehículos con reglas pivote (si se seleccionaron)
         if ($request->has('vehiculos')) {
-            $this->sincronizarVehiculos($zona, $request->input('vehiculos'));
+            $error = $this->sincronizarVehiculos($zona, $request->input('vehiculos'));
+            if ($error) {
+                // La zona ya se creó; avisamos que algunos vehículos no se pudieron vincular.
+                return redirect()->route('zonas.index')->with('warning', $error);
+            }
         }
 
         return redirect()->route('zonas.index')->with('success', 'Geocerca creada correctamente.');
@@ -94,7 +93,7 @@ class ZonaController extends Controller
         $request->validate([
             'nombre' => 'required|string|max:255',
             'color_hex' => 'required|string|max:7',
-            'coordenadas' => 'nullable|string', // Opcional si solo edita nombre/vehículos
+            'coordenadas' => 'nullable|string',
             'vehiculos' => 'nullable|array',
             'vehiculos.*.id' => 'required|exists:vehiculos,id',
             'vehiculos.*.tipo_regla' => 'required|in:permitida,restringida,informativa',
@@ -109,7 +108,6 @@ class ZonaController extends Controller
             'color_hex' => $request->color_hex,
         ];
 
-        // Si se volvió a dibujar la geocerca
         if ($request->filled('coordenadas')) {
             $stringPoligono = $this->parsearCoordenadasAPolígono($request->coordenadas);
             if ($stringPoligono) {
@@ -119,8 +117,10 @@ class ZonaController extends Controller
 
         $zona->update($datosActualizar);
 
-        // Sincronizar vehículos vinculados
-        $this->sincronizarVehiculos($zona, $request->input('vehiculos', []));
+        $error = $this->sincronizarVehiculos($zona, $request->input('vehiculos', []));
+        if ($error) {
+            return redirect()->route('zonas.index')->with('warning', $error);
+        }
 
         return redirect()->route('zonas.index')->with('success', 'Geocerca actualizada correctamente.');
     }
@@ -133,9 +133,6 @@ class ZonaController extends Controller
         return redirect()->route('zonas.index')->with('success', 'Geocerca eliminada correctamente.');
     }
 
-    /**
-     * Auxiliar para formatear el array de coordenadas a WKT POLYGON
-     */
     private function parsearCoordenadasAPolígono(string $jsonCoordenadas): ?string
     {
         $coordenadas = json_decode($jsonCoordenadas, true);
@@ -149,7 +146,6 @@ class ZonaController extends Controller
             $puntos[] = $coord['lng'] . ' ' . $coord['lat'];
         }
 
-        // El polígono debe cerrarse (primer punto igual al último)
         if ($puntos[0] !== end($puntos)) {
             $puntos[] = $puntos[0];
         }
@@ -158,13 +154,33 @@ class ZonaController extends Controller
     }
 
     /**
-     * Sincroniza los vehículos en la tabla pivote vehiculo_zona
+     * Sincroniza los vehículos en la tabla pivote vehiculo_zona.
+     * Filtra (y reporta) cualquier vehículo que no pertenezca al mismo
+     * dueño de la zona (empresa o Cliente Individual), en vez de vincularlo
+     * silenciosamente. Devuelve un mensaje de advertencia si hubo rechazos,
+     * o null si todo se vinculó sin problema.
      */
-    private function sincronizarVehiculos(Zona $zona, array $vehiculosInput)
+    private function sincronizarVehiculos(Zona $zona, array $vehiculosInput): ?string
     {
+        if (empty($vehiculosInput)) {
+            $zona->vehiculos()->sync([]);
+            return null;
+        }
+
+        $idsSolicitados = collect($vehiculosInput)->pluck('id')->all();
+        $vehiculosEncontrados = Vehiculo::whereIn('id', $idsSolicitados)->get()->keyBy('id');
+
         $syncData = [];
+        $rechazados = [];
 
         foreach ($vehiculosInput as $v) {
+            $vehiculo = $vehiculosEncontrados->get($v['id']);
+
+            if (!$vehiculo || !$zona->puedeAsignarseA($vehiculo)) {
+                $rechazados[] = $vehiculo->nombre ?? "ID {$v['id']}";
+                continue;
+            }
+
             $syncData[$v['id']] = [
                 'tipo_regla' => $v['tipo_regla'] ?? 'informativa',
                 'notificar_entrada' => filter_var($v['notificar_entrada'] ?? false, FILTER_VALIDATE_BOOLEAN),
@@ -175,11 +191,14 @@ class ZonaController extends Controller
         }
 
         $zona->vehiculos()->sync($syncData);
+
+        if (!empty($rechazados)) {
+            return 'Estos vehículos no se vincularon por pertenecer a otro corporativo: ' . implode(', ', $rechazados) . '.';
+        }
+
+        return null;
     }
 
-    /**
-     * Validar permisos Multi-Tenant
-     */
     private function verificarPropiedadZona(Zona $zona)
     {
         $user = auth()->user();
