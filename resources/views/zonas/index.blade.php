@@ -16,7 +16,28 @@
         .map-container { z-index: 10; }
     </style>
 
-    <div x-data="{ busqueda: '' }" class="space-y-5 pb-8 max-w-[1600px] mx-auto">
+    <div x-data="{
+            busqueda: '',
+            estadoZonas: {},
+            cargarEstado() {
+                fetch('{{ route('api.geocercas.estado') }}')
+                    .then(r => r.json())
+                    .then(eventos => {
+                        let agrupado = {};
+                        eventos.forEach(e => {
+                            if (!agrupado[e.zona_id]) agrupado[e.zona_id] = [];
+                            agrupado[e.zona_id].push(e);
+                        });
+                        this.estadoZonas = agrupado;
+                    })
+                    .catch(err => console.error('Error cargando estado de geocercas:', err));
+            },
+            vehiculosEnZona(zonaId) {
+                return this.estadoZonas[zonaId] || [];
+            }
+         }"
+         x-init="cargarEstado(); setInterval(() => cargarEstado(), 15000)"
+         class="space-y-5 pb-8 max-w-[1600px] mx-auto">
 
         <!-- Header Principal -->
         <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 animate-item">
@@ -57,6 +78,18 @@
             </div>
         @endif
 
+        @if(session('warning'))
+            <div x-data="{ show: true }" x-show="show" class="flex items-center justify-between px-5 py-3.5 rounded-xl bg-amber-50 text-amber-800 text-sm border border-amber-200 shadow-sm animate-item" style="animation-delay: 0.1s;">
+                <span class="flex items-center gap-2.5 font-medium">
+                    <svg class="w-5 h-5 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"></path></svg>
+                    {{ session('warning') }}
+                </span>
+                <button @click="show = false" class="text-amber-500 hover:text-amber-700 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+        @endif
+
         @if($errors->any())
             <div class="px-5 py-3.5 rounded-xl bg-rose-50 text-rose-800 text-sm border border-rose-200 shadow-sm animate-item" style="animation-delay: 0.1s;">
                 <ul class="list-disc list-inside space-y-1 font-medium">
@@ -69,10 +102,10 @@
 
         <!-- Layout de Trabajo -->
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-            
+
             <!-- Panel Izquierdo: Controles -->
             <div class="lg:col-span-4 flex flex-col gap-5 animate-item" style="animation-delay: 0.2s;">
-                
+
                 <!-- Tarjeta Formulario -->
                 <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
                     <div class="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
@@ -83,7 +116,7 @@
                         @csrf
                         <input type="hidden" name="_method" id="metodo-form" value="POST">
                         <input type="hidden" name="coordenadas" id="input-coordenadas" required>
-                        
+
                         <div>
                             <label class="block mb-1.5 text-xs font-semibold text-slate-600 uppercase">Nombre</label>
                             <input type="text" name="nombre" required placeholder="Ej. Almacén Central"
@@ -93,7 +126,7 @@
                         <div>
                             <label class="block mb-1.5 text-xs font-semibold text-slate-600 uppercase">Color en mapa</label>
                             <div class="flex items-center gap-3 bg-slate-50 border border-slate-200 p-1.5 rounded-xl">
-                                <input type="color" name="color_hex" value="#4F46E5" required 
+                                <input type="color" name="color_hex" value="#4F46E5" required
                                        class="w-10 h-8 rounded-lg cursor-pointer bg-transparent border-0 outline-none p-0">
                                 <span class="text-xs text-slate-500 font-medium">Color de relleno y borde</span>
                             </div>
@@ -106,14 +139,14 @@
                                 @forelse($vehiculos as $index => $vehiculo)
                                     <div x-data="{ seleccionado: false }" class="bg-slate-50 border border-slate-200 rounded-lg p-3 transition-colors" :class="{ 'border-indigo-300 bg-indigo-50/30': seleccionado }">
                                         <label class="flex items-center gap-3 cursor-pointer">
-                                            <input type="checkbox" x-model="seleccionado" name="vehiculos[{{ $index }}][id]" value="{{ $vehiculo->id }}" 
+                                            <input type="checkbox" x-model="seleccionado" name="vehiculos[{{ $index }}][id]" value="{{ $vehiculo->id }}"
                                                    class="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500">
                                             <div class="flex flex-col">
                                                 <span class="text-sm font-bold text-slate-700">{{ $vehiculo->nombre }}</span>
                                                 <span class="text-[10px] text-slate-400">{{ $vehiculo->placas ?? 'Sin Placas' }}</span>
                                             </div>
                                         </label>
-                                        
+
                                         <!-- Opciones que aparecen al seleccionar el vehículo -->
                                         <div x-show="seleccionado" x-collapse class="mt-3 pl-7 space-y-3">
                                             <div>
@@ -134,6 +167,20 @@
                                                     Generar alerta de Salida
                                                 </label>
                                             </div>
+
+                                            <!-- NUEVO: Permanencia mínima / máxima -->
+                                            <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/70">
+                                                <div class="pt-2">
+                                                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Permanencia mín. (min)</label>
+                                                    <input type="number" min="1" name="vehiculos[{{ $index }}][permanencia_minima_minutos]" placeholder="Sin límite"
+                                                           class="w-full text-xs bg-white border border-slate-200 rounded-lg p-1.5 outline-none focus:border-indigo-500">
+                                                </div>
+                                                <div class="pt-2">
+                                                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Permanencia máx. (min)</label>
+                                                    <input type="number" min="1" name="vehiculos[{{ $index }}][permanencia_maxima_minutos]" placeholder="Sin límite"
+                                                           class="w-full text-xs bg-white border border-slate-200 rounded-lg p-1.5 outline-none focus:border-indigo-500">
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 @empty
@@ -148,12 +195,12 @@
                         </div>
 
                         <div class="flex gap-3">
-                            <button type="submit" id="btn-guardar" disabled 
+                            <button type="submit" id="btn-guardar" disabled
                                     class="flex-1 px-5 py-3 text-sm font-bold text-white bg-slate-900 rounded-xl hover:bg-slate-800 transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg>
                                 Guardar Geocerca
                             </button>
-                            <button type="button" id="btn-cancelar" onclick="cancelarEdicion()" 
+                            <button type="button" id="btn-cancelar" onclick="cancelarEdicion()"
                                     class="hidden px-5 py-3 text-sm font-bold text-slate-700 bg-slate-100 rounded-xl hover:bg-slate-200 transition-all shadow-sm">
                                 Cancelar
                             </button>
@@ -162,7 +209,7 @@
                 </div>
 
                 <!-- Tarjeta Lista de Zonas -->
-                <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col max-h-[400px]">
+                <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col max-h-[440px]">
                     <div class="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
                         <h3 class="font-bold text-slate-800 text-sm">Zonas Registradas</h3>
                         <span class="inline-flex items-center justify-center px-2 py-1 rounded-md text-xs font-bold bg-white border border-slate-200 text-slate-600 shadow-sm">
@@ -173,30 +220,53 @@
                     <div class="overflow-y-auto p-3 space-y-1.5 custom-scrollbar">
                         @forelse($zonas as $zona)
                             @php $busquedaTexto = mb_strtolower($zona->nombre); @endphp
-                            <div x-show="busqueda === '' || @js($busquedaTexto).includes(busqueda.toLowerCase())"
-                                 class="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all bg-white group">
-                                
-                                <button type="button" @click="enfocarZona('{{ $zona->id }}')" class="flex items-center gap-3 text-left min-w-0 flex-1 pr-2 focus:outline-none">
-                                    <span class="w-3.5 h-3.5 rounded-full shrink-0 shadow-sm border border-black/10" style="background-color: {{ $zona->color_hex }}"></span>
-                                    <div class="truncate">
-                                        <div class="font-semibold text-slate-700 text-sm truncate group-hover:text-indigo-600 transition-colors">{{ $zona->nombre }}</div>
-                                        <div class="text-[11px] text-slate-400">Ver en mapa</div>
-                                    </div>
-                                </button>
+                            <div x-data="{ expandido: false }"
+                                 x-show="busqueda === '' || @js($busquedaTexto).includes(busqueda.toLowerCase())"
+                                 class="rounded-xl border border-transparent hover:border-slate-100 transition-all bg-white group">
 
-                                <div class="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <!-- Botón de Editar -->
-                                    <button type="button" onclick="prepararEdicion({{ $zona->id }})" title="Editar zona" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                <div class="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50">
+                                    <button type="button" @click="enfocarZona('{{ $zona->id }}')" class="flex items-center gap-3 text-left min-w-0 flex-1 pr-2 focus:outline-none">
+                                        <span class="w-3.5 h-3.5 rounded-full shrink-0 shadow-sm border border-black/10" style="background-color: {{ $zona->color_hex }}"></span>
+                                        <div class="truncate">
+                                            <div class="font-semibold text-slate-700 text-sm truncate group-hover:text-indigo-600 transition-colors">{{ $zona->nombre }}</div>
+                                            <div class="text-[11px] text-slate-400">Ver en mapa</div>
+                                        </div>
                                     </button>
 
-                                    <!-- Formulario Eliminar -->
-                                    <form action="{{ route('zonas.destroy', $zona->id) }}" method="POST" onsubmit="return confirm('¿Eliminar definitivamente esta geocerca?');" class="inline-block">
-                                        @csrf @method('DELETE')
-                                        <button type="submit" title="Eliminar zona" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                        </button>
-                                    </form>
+                                    <div class="flex items-center gap-1 shrink-0">
+                                        <!-- Badge "en vivo": cuántos vehículos están dentro ahora -->
+                                        <template x-if="vehiculosEnZona('{{ $zona->id }}').length > 0">
+                                            <button type="button" @click="expandido = !expandido"
+                                                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                <span x-text="vehiculosEnZona('{{ $zona->id }}').length + ' dentro'"></span>
+                                            </button>
+                                        </template>
+
+                                        <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button type="button" onclick="prepararEdicion({{ $zona->id }})" title="Editar zona" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                            </button>
+
+                                            <form action="{{ route('zonas.destroy', $zona->id) }}" method="POST" onsubmit="return confirm('¿Eliminar definitivamente esta geocerca?');" class="inline-block">
+                                                @csrf @method('DELETE')
+                                                <button type="submit" title="Eliminar zona" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Detalle expandible: vehículos dentro, con alerta visual si excedieron su tiempo máximo -->
+                                <div x-show="expandido" x-collapse class="px-3 pb-3 space-y-1.5">
+                                    <template x-for="v in vehiculosEnZona('{{ $zona->id }}')" :key="v.vehiculo_id">
+                                        <div class="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg"
+                                             :class="(v.permanencia_maxima_minutos && v.minutos_dentro > v.permanencia_maxima_minutos) ? 'bg-rose-50 text-rose-700' : 'bg-slate-50 text-slate-600'">
+                                            <span class="font-medium" x-text="v.vehiculo_nombre"></span>
+                                            <span x-text="v.minutos_dentro + ' min dentro'"></span>
+                                        </div>
+                                    </template>
                                 </div>
                             </div>
                         @empty
@@ -221,7 +291,7 @@
 
     <!-- Lógica JavaScript -->
     <script>
-        var capasMap = {}; 
+        var capasMap = {};
 
         document.addEventListener('DOMContentLoaded', function () {
             var map = L.map('mapa-zonas').setView([18.8814, -99.1764], 13);
@@ -232,12 +302,12 @@
             }).addTo(map);
 
             var zonasGuardadas = @json($zonas);
-            
+
             zonasGuardadas.forEach(function(zona) {
                 if (zona.geojson) {
                     try {
                         var geoData = typeof zona.geojson === 'string' ? JSON.parse(zona.geojson) : zona.geojson;
-                        
+
                         var layer = L.geoJSON(geoData, {
                             style: {
                                 color: zona.color_hex || '#3B82F6',
@@ -247,7 +317,6 @@
                             }
                         }).bindPopup('<div class="font-sans font-bold text-slate-800">' + zona.nombre + '</div>').addTo(map);
 
-                        // Como L.geoJSON devuelve un FeatureGroup, obtenemos la primera capa (el polígono)
                         var polyLayer = layer.getLayers()[0];
                         capasMap[zona.id] = polyLayer;
 
@@ -269,7 +338,7 @@
                 dragMode: false,
                 cutPolygon: false,
                 removalMode: true,
-                drawPolygon: true 
+                drawPolygon: true
             });
 
             map.pm.setLang('es');
@@ -284,14 +353,14 @@
                 if (capaActual) {
                     map.removeLayer(capaActual);
                 }
-                
+
                 capaActual = e.layer;
                 var coordenadas = capaActual.getLatLngs()[0];
-                
+
                 capaActual.setStyle({
                     color: inputColor.value,
                     fillColor: inputColor.value,
-                    weight: 3, 
+                    weight: 3,
                     fillOpacity: 0.25
                 });
 
@@ -313,7 +382,6 @@
                 if(capaActual) {
                     capaActual.setStyle({ color: e.target.value, fillColor: e.target.value });
                 }
-                // Actualizar el color de la capa en edición si la hay
                 Object.values(capasMap).forEach(l => {
                     if(l.pm && l.pm.enabled()) {
                         l.setStyle({ color: e.target.value, fillColor: e.target.value });
@@ -323,14 +391,11 @@
 
             window.enfocarZona = function(zonaId) {
                 if (capasMap[zonaId]) {
-                    // Para enfocar usamos el featureGroup original si existe, o calculamos bounds del polígono
                     var bounds = capasMap[zonaId].getBounds();
                     map.flyToBounds(bounds, { padding: [50, 50], maxZoom: 16, duration: 1.5 });
                     setTimeout(() => capasMap[zonaId].openPopup(), 1500);
                 }
             };
-
-            // ---- NUEVA LÓGICA DE EDICIÓN ----
 
             function layerToWKT(layer) {
                 var latlngs = layer.getLatLngs()[0];
@@ -343,7 +408,6 @@
                 var zona = zonasGuardadas.find(z => z.id == zonaId);
                 if(!zona) return;
 
-                // 1. Preparar Formulario
                 document.getElementById('form-zona').action = `/zonas/${zona.id}`;
                 document.getElementById('metodo-form').value = 'PUT';
                 document.getElementById('titulo-formulario').innerText = 'Editar Zona: ' + zona.nombre;
@@ -352,7 +416,6 @@
                 document.querySelector('input[name="nombre"]').value = zona.nombre;
                 document.querySelector('input[name="color_hex"]').value = zona.color_hex || '#4F46E5';
 
-                // 2. Limpiar e inyectar vehículos
                 document.querySelectorAll('input[type="checkbox"][value]').forEach(cb => {
                     if(cb.checked && cb.name.includes('vehiculos')) {
                         cb.checked = false;
@@ -367,24 +430,27 @@
                             cb.checked = true;
                             cb.dispatchEvent(new Event('change'));
 
-                            let baseName = cb.name.replace('[id]', ''); 
+                            let baseName = cb.name.replace('[id]', '');
                             let selectRegla = document.querySelector(`select[name="${baseName}[tipo_regla]"]`);
                             let chkEntrada = document.querySelector(`input[name="${baseName}[notificar_entrada]"]`);
                             let chkSalida = document.querySelector(`input[name="${baseName}[notificar_salida]"]`);
+                            let inputMin = document.querySelector(`input[name="${baseName}[permanencia_minima_minutos]"]`);
+                            let inputMax = document.querySelector(`input[name="${baseName}[permanencia_maxima_minutos]"]`);
 
                             if(selectRegla) selectRegla.value = v.pivot.tipo_regla;
                             if(chkEntrada) chkEntrada.checked = (v.pivot.notificar_entrada == 1);
                             if(chkSalida) chkSalida.checked = (v.pivot.notificar_salida == 1);
+                            if(inputMin) inputMin.value = v.pivot.permanencia_minima_minutos ?? '';
+                            if(inputMax) inputMax.value = v.pivot.permanencia_maxima_minutos ?? '';
                         }
                     });
                 }
 
-                // 3. Preparar Mapa (Geoman)
-                if (capaActual) { 
-                    map.removeLayer(capaActual); 
-                    capaActual = null; 
+                if (capaActual) {
+                    map.removeLayer(capaActual);
+                    capaActual = null;
                 }
-                
+
                 Object.values(capasMap).forEach(l => {
                     if(l.pm) l.pm.disable();
                 });
@@ -392,7 +458,7 @@
                 let layerAEditar = capasMap[zona.id];
                 if(layerAEditar) {
                     layerAEditar.pm.enable({ allowSelfIntersection: false });
-                    
+
                     inputCoordenadas.value = layerToWKT(layerAEditar);
                     btnGuardar.disabled = false;
                     alertaDibujo.style.display = 'none';
@@ -406,7 +472,6 @@
             };
 
             window.cancelarEdicion = function() {
-                // 1. Resetear Formulario
                 document.getElementById('form-zona').reset();
                 document.getElementById('form-zona').action = "{{ route('zonas.store') }}";
                 document.getElementById('metodo-form').value = 'POST';
@@ -416,7 +481,6 @@
                 btnGuardar.disabled = true;
                 alertaDibujo.style.display = 'flex';
 
-                // Limpiar Alpine checkboxes
                 document.querySelectorAll('input[type="checkbox"][value]').forEach(cb => {
                     if(cb.checked && cb.name.includes('vehiculos')) {
                         cb.checked = false;
@@ -424,7 +488,6 @@
                     }
                 });
 
-                // 2. Resetear Mapa (Lo más fácil para deshacer formas a medias es recargar)
                 window.location.reload();
             };
         });

@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UbicacionController;
 use App\Http\Controllers\Api\RutaController;
+use App\Http\Controllers\Api\GpsController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -13,8 +14,7 @@ Route::get('/user', function (Request $request) {
 // RECEPCIÓN DE GPS (Traccar Client)
 // ==========================================
 // Usamos "any" para permitir tanto POST como GET sin que dé el error 405
-Route::any('/traccar', [UbicacionController::class, 'traccar']);
-
+Route::any('/traccar', [GpsController::class, 'traccar']);
 // Tu ruta usando la sintaxis de tupla (recomendada en Laravel 8+)
 Route::post('/rutas', [RutaController::class, 'store']);
 // Nota: Las rutas antiguas de "ReceptorGpsController" y "activos/en-vivo" 
