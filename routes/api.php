@@ -3,7 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UbicacionController;
-use App\Http\Controllers\Api\RutaController;
+use App\Http\Controllers\RutaController;
 use App\Http\Controllers\Api\GpsController;
 
 Route::get('/user', function (Request $request) {
