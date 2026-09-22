@@ -32,6 +32,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/vehiculos/en-vivo', [DashboardApiController::class, 'vehiculosEnVivo'])->name('vehiculos.en-vivo');
         Route::get('/zonas/en-vivo', [DashboardApiController::class, 'zonasEnVivo'])->name('zonas.en-vivo');
         Route::get('/alertas/recientes', [DashboardApiController::class, 'alertasRecientes'])->name('alertas.recientes');
+        Route::get('/geocercas/estado', [DashboardApiController::class, 'estadoGeocercas'])->name('geocercas.estado');
     });
 
     // ==========================================
