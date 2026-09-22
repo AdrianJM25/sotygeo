@@ -7,20 +7,21 @@
         <title>{{ config('app.name', 'SotyGeo') }}</title>
 
         <link rel="preconnect" href="https://fonts.googleapis.com">
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        
-        <!-- Tipografías: Josefin Sans (Títulos) y Ubuntu (Cuerpo) -->
-        <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;500;600;700&family=Ubuntu:wght@400;500;700&display=swap" rel="stylesheet">
-        
-        <!-- Iconos de Google (Material Symbols Rounded) -->
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;500;600;700&family=Ubuntu:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
 
-        <style>
-            body { font-family: 'Ubuntu', sans-serif; background-color: #F4F7F6; }
-            h1, h2, h3, h4, h5, h6, .font-heading { font-family: 'Josefin Sans', sans-serif; }
-            .scrollbar-hide::-webkit-scrollbar { display: none; }
-            .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        </style>
+
+<!-- Tipografías: Josefin Sans (Títulos) y Ubuntu (Cuerpo) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;600;700&family=Ubuntu:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+    body { font-family: 'Ubuntu', sans-serif; background-color: #F4F7F6; /* Fondo global off-white */ }
+    h1, h2, h3, h4, h5, h6, .font-heading { font-family: 'Josefin Sans', sans-serif; }
+</style>
+<!-- Iconos de Google (Material Symbols Rounded) -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" />
 
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
@@ -52,16 +53,6 @@
                             openNotificaciones: false,
                             busqueda: '',
                             notificacionesCount: 0,
-                            alertas: [],
-                            cargarNotificaciones() {
-                                fetch('{{ route('api.alertas.recientes') }}')
-                                    .then(res => res.json())
-                                    .then(data => {
-                                        this.alertas = data;
-                                        this.notificacionesCount = data.length;
-                                    })
-                                    .catch(err => console.error('Error cargando alertas:', err));
-                            },
                             modulos: {{ Illuminate\Support\Js::from(
                                 collect([
                                     ['nombre' => 'Dashboard', 'ruta' => route('dashboard'), 'activo' => request()->routeIs('dashboard')],
@@ -86,7 +77,6 @@
                                 return this.modulos.filter(m => m.nombre.toLowerCase().includes(q));
                             }
                         }"
-                        x-init="cargarNotificaciones(); setInterval(() => cargarNotificaciones(), 15000)"
                         class="flex items-center justify-between gap-4 px-6 py-4 bg-white border border-gray-200 shadow-sm rounded-2xl shrink-0 z-20">
 
                     <!-- Botón hamburguesa (sidebar móvil) -->
@@ -146,7 +136,6 @@
                                 </span>
                             </button>
 
-                            <!-- Menú Desplegable Dinámico de Notificaciones -->
                             <div x-show="openNotificaciones"
                                  x-transition:enter="transition ease-out duration-150"
                                  x-transition:enter-start="opacity-0 -translate-y-2 scale-95"
@@ -159,41 +148,17 @@
 
                                 <div class="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                                     <h3 class="text-sm font-bold text-gray-900">Notificaciones</h3>
-                                    <span class="text-xs text-gray-400" x-text="notificacionesCount + ' recientes'"></span>
+                                    <span class="text-xs text-gray-400" x-text="notificacionesCount + ' nuevas'"></span>
                                 </div>
 
-                                <div class="max-h-80 overflow-y-auto scrollbar-hide">
-                                    
-                                    <!-- Estado sin notificaciones -->
-                                    <div x-show="alertas.length === 0" class="flex flex-col items-center justify-center gap-2 py-10 px-4 text-center">
-                                        <div class="w-12 h-12 rounded-full bg-gray-50 text-gray-300 flex items-center justify-center mb-1">
-                                            <span class="material-symbols-rounded text-2xl">notifications_paused</span>
+                                <div class="max-h-80 overflow-y-auto">
+                                    <div class="flex flex-col items-center justify-center gap-2 py-10 px-4 text-center">
+                                        <div class="w-10 h-10 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+                                            </svg>
                                         </div>
-                                        <p class="text-sm text-gray-500 font-medium">No tienes notificaciones recientes.</p>
-                                    </div>
-
-                                    <!-- Lista dinámica de alertas -->
-                                    <div x-show="alertas.length > 0" class="divide-y divide-gray-50">
-                                        <template x-for="alerta in alertas" :key="alerta.id">
-                                            <div class="p-4 hover:bg-[#56928C]/5 transition-colors flex gap-3 items-start">
-                                                <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 shadow-sm"
-                                                     :class="{
-                                                        'bg-emerald-100 text-emerald-600': alerta.tipo === 'geocerca_entrada',
-                                                        'bg-amber-100 text-amber-600': alerta.tipo === 'geocerca_salida',
-                                                        'bg-rose-100 text-rose-600': alerta.tipo === 'permanencia_minima' || alerta.tipo === 'violacion_restringida'
-                                                     }">
-                                                    <span class="material-symbols-rounded text-[18px]" x-text="
-                                                        alerta.tipo === 'geocerca_entrada' ? 'login' : 
-                                                        (alerta.tipo === 'geocerca_salida' ? 'logout' : 'warning')
-                                                    "></span>
-                                                </div>
-                                                <div class="flex-1 min-w-0">
-                                                    <p class="text-[13px] text-gray-800 font-medium leading-tight" x-text="alerta.mensaje"></p>
-                                                    <p class="text-[10px] text-gray-400 mt-1.5 font-bold tracking-wide" 
-                                                       x-text="new Date(alerta.created_at).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })"></p>
-                                                </div>
-                                            </div>
-                                        </template>
+                                        <p class="text-sm text-gray-500">No tienes notificaciones nuevas.</p>
                                     </div>
                                 </div>
                             </div>
