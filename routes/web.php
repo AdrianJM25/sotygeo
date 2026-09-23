@@ -25,14 +25,15 @@ Route::middleware('auth')->group(function () {
     Route::get('/geocercas/historial', [EventoGeocercaController::class, 'index'])->name('geocercas.historial');
     
     // ==========================================
-    // API INTERNA (Dashboard y Mapas)
+    // API INTERNA (Dashboard4 y Mapas)
     // ==========================================
     // Utilizamos 'prefix' y 'name' para agruparlas limpiamente y evitar escribir '/api/' a mano.
     Route::prefix('api-interno')->name('api.')->group(function () {
         Route::get('/vehiculos/en-vivo', [DashboardApiController::class, 'vehiculosEnVivo'])->name('vehiculos.en-vivo');
         Route::get('/zonas/en-vivo', [DashboardApiController::class, 'zonasEnVivo'])->name('zonas.en-vivo');
         Route::get('/alertas/recientes', [DashboardApiController::class, 'alertasRecientes'])->name('alertas.recientes');
-        
+        Route::get('/geocercas/estado', [DashboardApiController::class, 'estadoGeocercas'])->name('geocercas.estado');
+
     });
 
     // ==========================================
