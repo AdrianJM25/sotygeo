@@ -60,4 +60,10 @@ class Ubicacion extends Model
     {
         return $this->belongsTo(Ruta::class);
     }
+
+
+    protected function serializeDate(\DateTimeInterface $date)
+{
+    return $date->setTimezone('UTC')->format('Y-m-d\TH:i:s.u\Z');
+}
 }
