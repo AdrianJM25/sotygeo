@@ -15,14 +15,14 @@
 
     <div class="py-6">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-            
+
             <!-- Barra de Filtros (Selector de Fecha) -->
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-4 mb-4">
                 <form method="GET" action="{{ route('vehiculos.ruta', $vehiculo->id) }}" class="flex flex-wrap items-end gap-4">
                     <div>
                         <label for="fecha" class="block text-sm font-medium text-gray-700">Seleccionar Fecha:</label>
-                        <input type="date" name="fecha" id="fecha" 
-                               value="{{ request('fecha', $fechaConsulta->format('Y-m-d')) }}" 
+                        <input type="date" name="fecha" id="fecha"
+                               value="{{ request('fecha', $fechaConsulta->format('Y-m-d')) }}"
                                class="mt-1 block rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                     </div>
                     <div>
@@ -35,7 +35,7 @@
 
             <!-- Contenedor del Mapa y Estadísticas -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                
+
                 <!-- Panel Lateral de Estadísticas (1 columna) -->
                 <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-4 space-y-4">
                     <h3 class="font-bold text-gray-700 border-b pb-2">Resumen del Día</h3>
@@ -46,6 +46,14 @@
                     <div>
                         <span class="text-xs text-gray-500 block">Fecha consultada:</span>
                         <span class="text-sm font-medium text-gray-900">{{ $fechaConsulta->format('d/m/Y') }}</span>
+                    </div>
+                    <div id="resumen-horas" class="hidden">
+                        <span class="text-xs text-gray-500 block">Hora de inicio:</span>
+                        <span id="hora-inicio" class="text-sm font-medium text-gray-900">—</span>
+                    </div>
+                    <div id="resumen-horas-fin" class="hidden">
+                        <span class="text-xs text-gray-500 block">Hora de fin / último punto:</span>
+                        <span id="hora-fin" class="text-sm font-medium text-gray-900">—</span>
                     </div>
                 </div>
 
@@ -61,15 +69,19 @@
 
     <!-- 2. CARGAMOS EL JS DE LEAFLET DIRECTAMENTE AQUÍ -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    
+
     <script>
         document.addEventListener("DOMContentLoaded", function() {
-            // Recibimos los datos del controlador
+            // Recibimos los datos del controlador.
+            // fecha_gps viene serializada en UTC con formato ISO ("...Z"),
+            // por lo que new Date(...) la interpreta correctamente y
+            // toLocaleString()/toLocaleTimeString() la muestran ya convertida
+            // a la hora local del navegador (Morelos/CDMX en este caso).
             const ubicaciones = @json($ubicaciones);
-            console.log("Ubicaciones cargadas:", ubicaciones); // <-- Revisa la consola del navegador
-            
+            console.log("Ubicaciones cargadas:", ubicaciones);
+
             // Coordenadas por defecto (Centro de México)
-            let latInicial = 19.4326; 
+            let latInicial = 19.4326;
             let lonInicial = -99.1332;
 
             if (ubicaciones.length > 0) {
@@ -86,6 +98,16 @@
                 attribution: '&copy; OpenStreetMap contributors'
             }).addTo(map);
 
+            function formatearFechaLocal(fechaISO) {
+                if (!fechaISO) return 'N/D';
+                const d = new Date(fechaISO);
+                if (isNaN(d.getTime())) return 'N/D';
+                return d.toLocaleString('es-MX', {
+                    day: '2-digit', month: '2-digit', year: 'numeric',
+                    hour: '2-digit', minute: '2-digit', second: '2-digit'
+                });
+            }
+
             if (ubicaciones.length > 0) {
                 // Mapear coordenadas para la polilínea (ruta)
                 const latLngs = ubicaciones.map(u => [parseFloat(u.latitud), parseFloat(u.longitud)]);
@@ -96,11 +118,28 @@
                 // Ajustar el zoom del mapa para que encaje toda la ruta
                 map.fitBounds(polyline.getBounds(), { padding: [20, 20] });
 
-                // Agregar marcadores de Inicio y Fin
-                L.marker(latLngs[0]).addTo(map).bindPopup("<b>Inicio de ruta</b>");
-                
+                const primerPunto = ubicaciones[0];
+                const ultimoPunto = ubicaciones[ubicaciones.length - 1];
+
+                const horaInicioTexto = formatearFechaLocal(primerPunto.fecha_gps);
+                const horaFinTexto = formatearFechaLocal(ultimoPunto.fecha_gps);
+
+                // Actualizar panel lateral con las horas reales (ya en local)
+                document.getElementById('resumen-horas').classList.remove('hidden');
+                document.getElementById('resumen-horas-fin').classList.remove('hidden');
+                document.getElementById('hora-inicio').innerText = horaInicioTexto;
+                document.getElementById('hora-fin').innerText = horaFinTexto;
+
+                // Marcador de inicio, con hora real del punto
+                L.marker(latLngs[0]).addTo(map).bindPopup(
+                    `<b>Inicio de ruta</b><br><span style="font-size:12px;color:#555;">${horaInicioTexto}</span>`
+                );
+
+                // Marcador de fin (si hay más de un punto)
                 if (latLngs.length > 1) {
-                    L.marker(latLngs[latLngs.length - 1]).addTo(map).bindPopup("<b>Fin de ruta / Último punto</b>");
+                    L.marker(latLngs[latLngs.length - 1]).addTo(map).bindPopup(
+                        `<b>Fin de ruta / Último punto</b><br><span style="font-size:12px;color:#555;">${horaFinTexto}</span>`
+                    );
                 }
             }
         });

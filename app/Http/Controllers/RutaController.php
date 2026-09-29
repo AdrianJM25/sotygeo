@@ -16,26 +16,31 @@ class RutaController extends Controller
             return back()->with('error', 'Este vehículo no tiene un dispositivo GPS asignado.');
         }
 
-        // Permite filtrar por fecha mediante request (por defecto hoy)
-        $fechaConsulta = $request->filled('fecha') 
-            ? Carbon::parse($request->fecha) 
-            : today();
+        $zonaLocal = 'America/Mexico_City';
+
+        // La fecha que pide el usuario se interpreta en hora de México,
+        // no en UTC (así "26/09" significa el día 26 completo en Morelos/CDMX).
+        $fechaConsulta = $request->filled('fecha')
+            ? Carbon::parse($request->fecha, $zonaLocal)
+            : Carbon::now($zonaLocal);
+
+        // Convertimos el día completo en hora local a un rango UTC,
+        // que es como está guardado fecha_gps en la base de datos.
+        $inicioUTC = $fechaConsulta->copy()->startOfDay()->setTimezone('UTC');
+        $finUTC    = $fechaConsulta->copy()->endOfDay()->setTimezone('UTC');
 
         $ubicaciones = $vehiculo->dispositivo->ubicaciones()
-            ->whereDate('fecha_gps', $fechaConsulta)
+            ->whereBetween('fecha_gps', [$inicioUTC, $finUTC])
             ->orderBy('fecha_gps', 'asc')
             ->get();
 
         return view('vehiculos.ruta', compact('vehiculo', 'ubicaciones', 'fechaConsulta'));
     }
 
-    /**
-     * Verifica que el usuario actual tenga permisos sobre el vehículo consultado.
-     */
     private function verificarPropiedadVehiculo(Vehiculo $vehiculo)
     {
         $user = auth()->user();
-        
+
         if ($user->hasRole('Super Administrador')) {
             return;
         }
