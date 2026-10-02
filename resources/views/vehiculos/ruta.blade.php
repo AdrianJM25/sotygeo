@@ -55,6 +55,18 @@
                         <span class="text-xs text-gray-500 block">Hora de fin / último punto:</span>
                         <span id="hora-fin" class="text-sm font-medium text-gray-900">—</span>
                     </div>
+                    <div class="pt-2 border-t">
+                        <span class="text-xs text-gray-500 block mb-1">Leyenda:</span>
+                        <div class="flex items-center gap-2 text-xs text-gray-600 mb-1">
+                            <span class="inline-block w-3 h-3 rounded-full bg-green-500"></span> Inicio de ruta
+                        </div>
+                        <div class="flex items-center gap-2 text-xs text-gray-600 mb-1">
+                            <span class="inline-block w-3 h-3 rounded-full bg-indigo-600"></span> Punto GPS
+                        </div>
+                        <div class="flex items-center gap-2 text-xs text-gray-600">
+                            <span class="inline-block w-3 h-3 rounded-full bg-red-500"></span> Fin de ruta
+                        </div>
+                    </div>
                 </div>
 
                 <!-- El Mapa (3 columnas) -->
@@ -67,20 +79,15 @@
         </div>
     </div>
 
-    <!-- 2. CARGAMOS EL JS DE LEAFLET DIRECTAMENTE AQUÍ -->
+    <!-- 2. CARGAMOS EL JS DE LEAFLET Y EL PLUGIN DE FLECHAS DE DIRECCIÓN -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
 
     <script>
         document.addEventListener("DOMContentLoaded", function() {
-            // Recibimos los datos del controlador.
-            // fecha_gps viene serializada en UTC con formato ISO ("...Z"),
-            // por lo que new Date(...) la interpreta correctamente y
-            // toLocaleString()/toLocaleTimeString() la muestran ya convertida
-            // a la hora local del navegador (Morelos/CDMX en este caso).
             const ubicaciones = @json($ubicaciones);
             console.log("Ubicaciones cargadas:", ubicaciones);
 
-            // Coordenadas por defecto (Centro de México)
             let latInicial = 19.4326;
             let lonInicial = -99.1332;
 
@@ -89,10 +96,9 @@
                 lonInicial = ubicaciones[0].longitud;
             }
 
-            // Inicializar Mapa Leaflet
-            const map = L.map('mapa-historial').setView([latInicial, lonInicial], 13);
+            // Usamos renderer de canvas para que cientos de puntos no afecten el rendimiento
+            const map = L.map('mapa-historial', { renderer: L.canvas() }).setView([latInicial, lonInicial], 13);
 
-            // Cargar los "tiles" (las imágenes del mapa)
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
                 attribution: '&copy; OpenStreetMap contributors'
@@ -109,14 +115,52 @@
             }
 
             if (ubicaciones.length > 0) {
-                // Mapear coordenadas para la polilínea (ruta)
                 const latLngs = ubicaciones.map(u => [parseFloat(u.latitud), parseFloat(u.longitud)]);
 
-                // Dibujar la línea de la ruta en el mapa
-                const polyline = L.polyline(latLngs, {color: 'indigo', weight: 4}).addTo(map);
+                // Línea de la ruta
+                const polyline = L.polyline(latLngs, { color: '#4f46e5', weight: 4, opacity: 0.85 }).addTo(map);
 
-                // Ajustar el zoom del mapa para que encaje toda la ruta
+                // Flechas de dirección a lo largo de toda la ruta, indicando hacia dónde avanza
+                L.polylineDecorator(polyline, {
+                    patterns: [
+                        {
+                            offset: '4%',
+                            repeat: '6%',
+                            symbol: L.Symbol.arrowHead({
+                                pixelSize: 11,
+                                polygon: false,
+                                pathOptions: { stroke: true, weight: 2, color: '#4f46e5', opacity: 0.9 }
+                            })
+                        }
+                    ]
+                }).addTo(map);
+
                 map.fitBounds(polyline.getBounds(), { padding: [20, 20] });
+
+                // Un puntito (circleMarker) en CADA coordenada que mandó el GPS
+                ubicaciones.forEach((u, idx) => {
+                    const lat = parseFloat(u.latitud);
+                    const lon = parseFloat(u.longitud);
+                    const esInicio = idx === 0;
+                    const esFin = idx === ubicaciones.length - 1;
+
+                    let color = '#4f46e5'; // puntos intermedios: índigo
+                    let radio = 4;
+                    if (esInicio) { color = '#22c55e'; radio = 7; } // inicio: verde
+                    if (esFin && ubicaciones.length > 1) { color = '#ef4444'; radio = 7; } // fin: rojo
+
+                    L.circleMarker([lat, lon], {
+                        radius: radio,
+                        color: '#ffffff',
+                        weight: 1,
+                        fillColor: color,
+                        fillOpacity: 0.9
+                    }).bindPopup(
+                        `<b>${esInicio ? 'Inicio de ruta' : (esFin ? 'Fin de ruta' : 'Punto #' + (idx + 1))}</b><br>` +
+                        `<span style="font-size:12px;color:#555;">${formatearFechaLocal(u.fecha_gps)}</span><br>` +
+                        `<span style="font-size:12px;color:#555;">Velocidad: ${u.velocidad ?? 'N/D'} km/h</span>`
+                    ).addTo(map);
+                });
 
                 const primerPunto = ubicaciones[0];
                 const ultimoPunto = ubicaciones[ubicaciones.length - 1];
@@ -124,23 +168,10 @@
                 const horaInicioTexto = formatearFechaLocal(primerPunto.fecha_gps);
                 const horaFinTexto = formatearFechaLocal(ultimoPunto.fecha_gps);
 
-                // Actualizar panel lateral con las horas reales (ya en local)
                 document.getElementById('resumen-horas').classList.remove('hidden');
                 document.getElementById('resumen-horas-fin').classList.remove('hidden');
                 document.getElementById('hora-inicio').innerText = horaInicioTexto;
                 document.getElementById('hora-fin').innerText = horaFinTexto;
-
-                // Marcador de inicio, con hora real del punto
-                L.marker(latLngs[0]).addTo(map).bindPopup(
-                    `<b>Inicio de ruta</b><br><span style="font-size:12px;color:#555;">${horaInicioTexto}</span>`
-                );
-
-                // Marcador de fin (si hay más de un punto)
-                if (latLngs.length > 1) {
-                    L.marker(latLngs[latLngs.length - 1]).addTo(map).bindPopup(
-                        `<b>Fin de ruta / Último punto</b><br><span style="font-size:12px;color:#555;">${horaFinTexto}</span>`
-                    );
-                }
             }
         });
     </script>
