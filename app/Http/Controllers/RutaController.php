@@ -18,23 +18,37 @@ class RutaController extends Controller
 
         $zonaLocal = 'America/Mexico_City';
 
-        // La fecha que pide el usuario se interpreta en hora de México,
-        // no en UTC (así "26/09" significa el día 26 completo en Morelos/CDMX).
-        $fechaConsulta = $request->filled('fecha')
-            ? Carbon::parse($request->fecha, $zonaLocal)
-            : Carbon::now($zonaLocal);
+        if ($request->filled('inicio') && $request->filled('fin')) {
+            // El usuario eligió un rango exacto de fecha y hora (interpretado en hora local)
+            $inicioLocal = Carbon::parse($request->inicio, $zonaLocal);
+            $finLocal    = Carbon::parse($request->fin, $zonaLocal);
+        } else {
+            // Por defecto: el día de hoy completo, en hora local
+            $hoy = Carbon::now($zonaLocal);
+            $inicioLocal = $hoy->copy()->startOfDay();
+            $finLocal    = $hoy->copy()->endOfDay();
+        }
 
-        // Convertimos el día completo en hora local a un rango UTC,
-        // que es como está guardado fecha_gps en la base de datos.
-        $inicioUTC = $fechaConsulta->copy()->startOfDay()->setTimezone('UTC');
-        $finUTC    = $fechaConsulta->copy()->endOfDay()->setTimezone('UTC');
+        // Si por error el usuario invierte las fechas, las intercambiamos
+        if ($finLocal->lt($inicioLocal)) {
+            [$inicioLocal, $finLocal] = [$finLocal, $inicioLocal];
+        }
+
+        // Convertimos el rango de hora local a UTC, que es como está guardado fecha_gps
+        $inicioUTC = $inicioLocal->copy()->setTimezone('UTC');
+        $finUTC    = $finLocal->copy()->setTimezone('UTC');
 
         $ubicaciones = $vehiculo->dispositivo->ubicaciones()
             ->whereBetween('fecha_gps', [$inicioUTC, $finUTC])
             ->orderBy('fecha_gps', 'asc')
             ->get();
 
-        return view('vehiculos.ruta', compact('vehiculo', 'ubicaciones', 'fechaConsulta'));
+        return view('vehiculos.ruta', [
+            'vehiculo'    => $vehiculo,
+            'ubicaciones' => $ubicaciones,
+            'inicioLocal' => $inicioLocal,
+            'finLocal'    => $finLocal,
+        ]);
     }
 
     private function verificarPropiedadVehiculo(Vehiculo $vehiculo)
