@@ -10,47 +10,97 @@ class EventoGeocerca extends Model
 {
     use HasFactory;
 
-    protected $table = 'eventos_geocerca';
+    protected $table =
+        'eventos_geocerca';
+
 
     protected $fillable = [
         'vehiculo_id',
         'zona_id',
+
         'fecha_entrada',
         'fecha_salida',
+
         'duracion_minutos',
+
         'latitud_entrada',
         'longitud_entrada',
+
         'latitud_salida',
         'longitud_salida',
+
         'alerta_generada',
+        'alerta_permanencia_generada',
+
         'tipo_evento',
     ];
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | CASTS
+    |--------------------------------------------------------------------------
+    */
 
     protected function casts(): array
     {
         return [
-            'fecha_entrada' => 'datetime',
-            'fecha_salida' => 'datetime',
-            'duracion_minutos' => 'integer',
-            'latitud_entrada' => 'decimal:7',
-            'longitud_entrada' => 'decimal:7',
-            'latitud_salida' => 'decimal:7',
-            'longitud_salida' => 'decimal:7',
-            'alerta_generada' => 'boolean',
+            'fecha_entrada' =>
+                'datetime',
+
+            'fecha_salida' =>
+                'datetime',
+
+            'duracion_minutos' =>
+                'integer',
+
+            'latitud_entrada' =>
+                'decimal:7',
+
+            'longitud_entrada' =>
+                'decimal:7',
+
+            'latitud_salida' =>
+                'decimal:7',
+
+            'longitud_salida' =>
+                'decimal:7',
+
+            'alerta_generada' =>
+                'boolean',
+
+            'alerta_permanencia_generada' =>
+                'boolean',
         ];
     }
 
-    // ==========================================
-    // RELACIONES
-    // ==========================================
+
+    /*
+    |--------------------------------------------------------------------------
+    | VEHÍCULO
+    |--------------------------------------------------------------------------
+    */
 
     public function vehiculo(): BelongsTo
     {
-        return $this->belongsTo(Vehiculo::class, 'vehiculo_id');
+        return $this->belongsTo(
+            Vehiculo::class,
+            'vehiculo_id'
+        );
     }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | ZONA
+    |--------------------------------------------------------------------------
+    */
 
     public function zona(): BelongsTo
     {
-        return $this->belongsTo(Zona::class, 'zona_id');
+        return $this->belongsTo(
+            Zona::class,
+            'zona_id'
+        );
     }
 }

@@ -2,150 +2,798 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Empresa;
 use App\Models\Flotilla;
 use App\Models\User;
-use App\Models\Empresa;
-use App\Models\Vehiculo; // <-- No olvides importar el modelo Vehiculo
+use App\Models\Vehiculo;
 use Illuminate\Http\Request;
 
 class FlotillaController extends Controller
 {
-    public function index()
+    /*
+    |--------------------------------------------------------------------------
+    | LISTADO
+    |--------------------------------------------------------------------------
+    */
+
+    public function index(Request $request)
     {
         $userActual = auth()->user();
 
-        $query = Flotilla::with(['usuario', 'vehiculos', 'empresa'])->latest();
-        
-        // Ajusta los campos ('nombre', 'placas') si en tu BD se llaman diferente (ej. 'marca', 'modelo')
-        $queryVehiculos = Vehiculo::select('id', 'empresa_id', 'flotilla_id', 'nombre', 'placas');
+        $query = Flotilla::query()
+            ->with([
+                'usuario',
+                'empresa',
+                'vehiculos',
+            ])
+            ->latest();
 
         if (!$userActual->hasRole('Super Administrador')) {
-            $query->where('empresa_id', $userActual->empresa_id);
-            $queryVehiculos->where('empresa_id', $userActual->empresa_id);
-            
-            // Solo usuarios activos de su propia empresa
-            $users = User::where('empresa_id', $userActual->empresa_id)
-                         ->where('activo', true)
-                         ->get(['id', 'nombre', 'apellido_paterno', 'empresa_id']);
-                         
-            $empresas = collect([$userActual->empresa]); 
-        } else {
-            // Super Admin obtiene todos los usuarios activos para que Alpine.js los filtre en la vista
-            $users = User::where('activo', true)
-                         ->get(['id', 'nombre', 'apellido_paterno', 'empresa_id']);
-                         
-            $empresas = Empresa::orderBy('nombre')->get();
+            $query->where(
+                'empresa_id',
+                $userActual->empresa_id
+            );
         }
 
-        $flotillas = $query->paginate(10);
-        $vehiculos = $queryVehiculos->get();
+        if ($request->filled('buscar')) {
+            $buscar = $request->buscar;
 
-        return view('flotillas.index', compact('flotillas', 'users', 'empresas', 'vehiculos'));
+            $query->where(function ($q) use ($buscar) {
+
+                $q->where(
+                    'nombre',
+                    'like',
+                    "%{$buscar}%"
+                )
+                    ->orWhere(
+                        'descripcion',
+                        'like',
+                        "%{$buscar}%"
+                    )
+                    ->orWhereHas(
+                        'empresa',
+                        function ($empresa) use ($buscar) {
+                            $empresa->where(
+                                'nombre',
+                                'like',
+                                "%{$buscar}%"
+                            );
+                        }
+                    )
+                    ->orWhereHas(
+                        'usuario',
+                        function ($usuario) use ($buscar) {
+
+                            $usuario
+                                ->where(
+                                    'nombre',
+                                    'like',
+                                    "%{$buscar}%"
+                                )
+                                ->orWhere(
+                                    'apellido_paterno',
+                                    'like',
+                                    "%{$buscar}%"
+                                );
+                        }
+                    );
+            });
+        }
+
+        $flotillas = $query
+            ->paginate(10)
+            ->withQueryString();
+
+        return view(
+            'flotillas.index',
+            compact(
+                'flotillas'
+            )
+        );
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | FORMULARIO CREAR
+    |--------------------------------------------------------------------------
+    */
+
+    public function create()
+    {
+        $userActual = auth()->user();
+
+        if ($userActual->hasRole('Super Administrador')) {
+
+            $empresas = Empresa::query()
+                ->orderBy('nombre')
+                ->get();
+
+            $users = User::query()
+                ->with('empresa')
+                ->where('activo', true)
+                ->orderBy('nombre')
+                ->get();
+
+            $vehiculos = Vehiculo::query()
+                ->with('empresa')
+                ->whereNull('flotilla_id')
+                ->orderBy('nombre')
+                ->get();
+
+        } else {
+
+            $empresas = Empresa::query()
+                ->where(
+                    'id',
+                    $userActual->empresa_id
+                )
+                ->get();
+
+            $users = User::query()
+                ->where(
+                    'empresa_id',
+                    $userActual->empresa_id
+                )
+                ->where(
+                    'activo',
+                    true
+                )
+                ->orderBy('nombre')
+                ->get();
+
+            $vehiculos = Vehiculo::query()
+                ->where(
+                    'empresa_id',
+                    $userActual->empresa_id
+                )
+                ->whereNull('flotilla_id')
+                ->orderBy('nombre')
+                ->get();
+        }
+
+        return view(
+            'flotillas.create',
+            compact(
+                'empresas',
+                'users',
+                'vehiculos'
+            )
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | GUARDAR
+    |--------------------------------------------------------------------------
+    */
 
     public function store(Request $request)
     {
         $userActual = auth()->user();
 
         $request->validate([
-            'nombre' => 'required|string|max:255',
-            'descripcion' => 'nullable|string',
-            'user_id' => 'nullable|exists:users,id', 
-            'empresa_id' => $userActual->hasRole('Super Administrador') ? 'required|exists:empresas,id' : 'nullable',
-            'vehiculos' => 'nullable|array',
-            'vehiculos.*' => 'exists:vehiculos,id' // Validación del array de vehículos
+            'nombre' => [
+                'required',
+                'string',
+                'max:255',
+            ],
+
+            'descripcion' => [
+                'nullable',
+                'string',
+            ],
+
+            'user_id' => [
+                'nullable',
+                'exists:users,id',
+            ],
+
+            'empresa_id' => [
+                $userActual->hasRole('Super Administrador')
+                    ? 'required'
+                    : 'nullable',
+                'exists:empresas,id',
+            ],
+
+            'vehiculos' => [
+                'nullable',
+                'array',
+            ],
+
+            'vehiculos.*' => [
+                'exists:vehiculos,id',
+            ],
         ]);
 
-        $empresa_id = $userActual->hasRole('Super Administrador') 
-                        ? $request->empresa_id 
-                        : $userActual->empresa_id;
+        $empresaId =
+            $userActual->hasRole('Super Administrador')
+                ? (int) $request->empresa_id
+                : (int) $userActual->empresa_id;
+
+        /*
+        |--------------------------------------------------------------------------
+        | VALIDAR RESPONSABLE
+        |--------------------------------------------------------------------------
+        */
 
         if ($request->filled('user_id')) {
-            $gestor = User::findOrFail($request->user_id);
-            if ($gestor->empresa_id != $empresa_id) {
-                return back()->withErrors(['user_id' => 'El responsable seleccionado pertenece a otro corporativo.'])->withInput();
+
+            $gestor = User::findOrFail(
+                $request->user_id
+            );
+
+            if (
+                (int) $gestor->empresa_id
+                !==
+                $empresaId
+            ) {
+
+                return back()
+                    ->withErrors([
+                        'user_id' =>
+                            'El responsable seleccionado pertenece a otra empresa.',
+                    ])
+                    ->withInput();
             }
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | VALIDAR VEHÍCULOS
+        |--------------------------------------------------------------------------
+        */
+
+        $vehiculosIds = collect(
+            $request->input(
+                'vehiculos',
+                []
+            )
+        )
+            ->map(
+                fn ($id) => (int) $id
+            )
+            ->unique()
+            ->values();
+
+        if ($vehiculosIds->isNotEmpty()) {
+
+            $vehiculosValidos =
+                Vehiculo::query()
+                    ->whereIn(
+                        'id',
+                        $vehiculosIds
+                    )
+                    ->where(
+                        'empresa_id',
+                        $empresaId
+                    )
+                    ->whereNull(
+                        'flotilla_id'
+                    )
+                    ->pluck(
+                        'id'
+                    );
+
+            if (
+                $vehiculosValidos->count()
+                !==
+                $vehiculosIds->count()
+            ) {
+
+                return back()
+                    ->withErrors([
+                        'vehiculos' =>
+                            'Uno o más vehículos no pertenecen a la empresa seleccionada o ya están asignados a otra flotilla.',
+                    ])
+                    ->withInput();
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | CREAR FLOTILLA
+        |--------------------------------------------------------------------------
+        */
 
         $flotilla = Flotilla::create([
-            'empresa_id' => $empresa_id,
-            'user_id' => $request->user_id,
-            'nombre' => $request->nombre,
-            'descripcion' => $request->descripcion,
+            'empresa_id' =>
+                $empresaId,
+
+            'user_id' =>
+                $request->user_id,
+
+            'nombre' =>
+                $request->nombre,
+
+            'descripcion' =>
+                $request->descripcion,
         ]);
 
-        // Asignar los vehículos seleccionados a esta nueva flotilla
-        if ($request->has('vehiculos') && count($request->vehiculos) > 0) {
-            Vehiculo::whereIn('id', $request->vehiculos)
-                    ->where('empresa_id', $empresa_id) // Capa extra de seguridad multi-tenant
-                    ->update(['flotilla_id' => $flotilla->id]);
+        /*
+        |--------------------------------------------------------------------------
+        | ASIGNAR VEHÍCULOS
+        |--------------------------------------------------------------------------
+        */
+
+        if ($vehiculosIds->isNotEmpty()) {
+
+            Vehiculo::query()
+                ->whereIn(
+                    'id',
+                    $vehiculosIds
+                )
+                ->where(
+                    'empresa_id',
+                    $empresaId
+                )
+                ->whereNull(
+                    'flotilla_id'
+                )
+                ->update([
+                    'flotilla_id' =>
+                        $flotilla->id,
+                ]);
         }
 
-        return redirect()->route('flotillas.index')->with('success', 'Flotilla registrada correctamente.');
+        return redirect()
+            ->route(
+                'flotillas.index'
+            )
+            ->with(
+                'success',
+                'Flotilla registrada correctamente.'
+            );
     }
 
-    public function update(Request $request, Flotilla $flotilla)
-    {
-        $userActual = auth()->user();
+    /*
+    |--------------------------------------------------------------------------
+    | VER DETALLE
+    |--------------------------------------------------------------------------
+    */
 
-        if (!$userActual->hasRole('Super Administrador') && $flotilla->empresa_id !== $userActual->empresa_id) {
-            abort(403, 'Acceso denegado a esta flotilla.');
-        }
+    public function show(
+        Flotilla $flotilla
+    ) {
+        $this->validarAcceso(
+            $flotilla
+        );
 
-        $request->validate([
-            'nombre' => 'required|string|max:255',
-            'descripcion' => 'nullable|string',
-            'user_id' => 'nullable|exists:users,id',
-            'empresa_id' => $userActual->hasRole('Super Administrador') ? 'required|exists:empresas,id' : 'nullable',
-            'vehiculos' => 'nullable|array',
-            'vehiculos.*' => 'exists:vehiculos,id'
+        $flotilla->load([
+            'empresa',
+            'usuario',
+            'vehiculos',
         ]);
 
-        $empresa_id = $userActual->hasRole('Super Administrador') 
-                        ? $request->empresa_id 
-                        : $flotilla->empresa_id; 
+        return view(
+            'flotillas.show',
+            compact(
+                'flotilla'
+            )
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | FORMULARIO EDITAR
+    |--------------------------------------------------------------------------
+    */
+
+    public function edit(
+        Flotilla $flotilla
+    ) {
+        $this->validarAcceso(
+            $flotilla
+        );
+
+        $userActual =
+            auth()->user();
+
+        $flotilla->load(
+            'vehiculos'
+        );
+
+        if (
+            $userActual
+                ->hasRole(
+                    'Super Administrador'
+                )
+        ) {
+
+            $empresas =
+                Empresa::query()
+                    ->orderBy(
+                        'nombre'
+                    )
+                    ->get();
+
+            $users =
+                User::query()
+                    ->with(
+                        'empresa'
+                    )
+                    ->where(
+                        'activo',
+                        true
+                    )
+                    ->orderBy(
+                        'nombre'
+                    )
+                    ->get();
+
+            $vehiculos =
+                Vehiculo::query()
+                    ->with(
+                        'empresa'
+                    )
+                    ->where(
+                        function ($query) use ($flotilla) {
+
+                            $query
+                                ->whereNull(
+                                    'flotilla_id'
+                                )
+                                ->orWhere(
+                                    'flotilla_id',
+                                    $flotilla->id
+                                );
+                        }
+                    )
+                    ->orderBy(
+                        'nombre'
+                    )
+                    ->get();
+
+        } else {
+
+            $empresas =
+                Empresa::query()
+                    ->where(
+                        'id',
+                        $userActual
+                            ->empresa_id
+                    )
+                    ->get();
+
+            $users =
+                User::query()
+                    ->where(
+                        'empresa_id',
+                        $userActual
+                            ->empresa_id
+                    )
+                    ->where(
+                        'activo',
+                        true
+                    )
+                    ->orderBy(
+                        'nombre'
+                    )
+                    ->get();
+
+            $vehiculos =
+                Vehiculo::query()
+                    ->where(
+                        'empresa_id',
+                        $userActual
+                            ->empresa_id
+                    )
+                    ->where(
+                        function ($query) use ($flotilla) {
+
+                            $query
+                                ->whereNull(
+                                    'flotilla_id'
+                                )
+                                ->orWhere(
+                                    'flotilla_id',
+                                    $flotilla->id
+                                );
+                        }
+                    )
+                    ->orderBy(
+                        'nombre'
+                    )
+                    ->get();
+        }
+
+        return view(
+            'flotillas.edit',
+            compact(
+                'flotilla',
+                'empresas',
+                'users',
+                'vehiculos'
+            )
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | ACTUALIZAR
+    |--------------------------------------------------------------------------
+    */
+
+    public function update(
+        Request $request,
+        Flotilla $flotilla
+    ) {
+        $this->validarAcceso(
+            $flotilla
+        );
+
+        $userActual =
+            auth()->user();
+
+        $request->validate([
+            'nombre' => [
+                'required',
+                'string',
+                'max:255',
+            ],
+
+            'descripcion' => [
+                'nullable',
+                'string',
+            ],
+
+            'user_id' => [
+                'nullable',
+                'exists:users,id',
+            ],
+
+            'empresa_id' => [
+                $userActual->hasRole('Super Administrador')
+                    ? 'required'
+                    : 'nullable',
+                'exists:empresas,id',
+            ],
+
+            'vehiculos' => [
+                'nullable',
+                'array',
+            ],
+
+            'vehiculos.*' => [
+                'exists:vehiculos,id',
+            ],
+        ]);
+
+        $empresaId =
+            $userActual->hasRole(
+                'Super Administrador'
+            )
+                ? (int) $request->empresa_id
+                : (int) $flotilla->empresa_id;
+
+        /*
+        |--------------------------------------------------------------------------
+        | VALIDAR RESPONSABLE
+        |--------------------------------------------------------------------------
+        */
 
         if ($request->filled('user_id')) {
-            $gestor = User::findOrFail($request->user_id);
-            if ($gestor->empresa_id != $empresa_id) {
-                return back()->withErrors(['user_id' => 'El responsable seleccionado pertenece a otro corporativo.'])->withInput();
+
+            $gestor =
+                User::findOrFail(
+                    $request->user_id
+                );
+
+            if (
+                (int) $gestor->empresa_id
+                !==
+                $empresaId
+            ) {
+
+                return back()
+                    ->withErrors([
+                        'user_id' =>
+                            'El responsable seleccionado pertenece a otra empresa.',
+                    ])
+                    ->withInput();
             }
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | VALIDAR VEHÍCULOS
+        |--------------------------------------------------------------------------
+        */
+
+        $vehiculosIds =
+            collect(
+                $request->input(
+                    'vehiculos',
+                    []
+                )
+            )
+                ->map(
+                    fn ($id) =>
+                        (int) $id
+                )
+                ->unique()
+                ->values();
+
+        if (
+            $vehiculosIds
+                ->isNotEmpty()
+        ) {
+
+            $vehiculosValidos =
+                Vehiculo::query()
+                    ->whereIn(
+                        'id',
+                        $vehiculosIds
+                    )
+                    ->where(
+                        'empresa_id',
+                        $empresaId
+                    )
+                    ->where(
+                        function ($query) use ($flotilla) {
+
+                            $query
+                                ->whereNull(
+                                    'flotilla_id'
+                                )
+                                ->orWhere(
+                                    'flotilla_id',
+                                    $flotilla->id
+                                );
+                        }
+                    )
+                    ->pluck(
+                        'id'
+                    );
+
+            if (
+                $vehiculosValidos->count()
+                !==
+                $vehiculosIds->count()
+            ) {
+
+                return back()
+                    ->withErrors([
+                        'vehiculos' =>
+                            'Uno o más vehículos no pertenecen a la empresa seleccionada o están asignados a otra flotilla.',
+                    ])
+                    ->withInput();
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | LIBERAR VEHÍCULOS ACTUALES
+        |--------------------------------------------------------------------------
+        */
+
+        Vehiculo::query()
+            ->where(
+                'flotilla_id',
+                $flotilla->id
+            )
+            ->update([
+                'flotilla_id' =>
+                    null,
+            ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | ACTUALIZAR FLOTILLA
+        |--------------------------------------------------------------------------
+        */
+
         $flotilla->update([
-            'empresa_id' => $empresa_id,
-            'user_id' => $request->user_id,
-            'nombre' => $request->nombre,
-            'descripcion' => $request->descripcion,
+            'empresa_id' =>
+                $empresaId,
+
+            'user_id' =>
+                $request->user_id,
+
+            'nombre' =>
+                $request->nombre,
+
+            'descripcion' =>
+                $request->descripcion,
         ]);
 
-        // 1. Liberar todos los vehículos que actualmente pertenecen a esta flotilla
-        Vehiculo::where('flotilla_id', $flotilla->id)->update(['flotilla_id' => null]);
+        /*
+        |--------------------------------------------------------------------------
+        | REASIGNAR VEHÍCULOS
+        |--------------------------------------------------------------------------
+        */
 
-        // 2. Asignar los nuevos vehículos seleccionados en el checkbox
-        if ($request->has('vehiculos') && count($request->vehiculos) > 0) {
-            Vehiculo::whereIn('id', $request->vehiculos)
-                    ->where('empresa_id', $empresa_id) // Medida de seguridad
-                    ->update(['flotilla_id' => $flotilla->id]);
+        if (
+            $vehiculosIds
+                ->isNotEmpty()
+        ) {
+
+            Vehiculo::query()
+                ->whereIn(
+                    'id',
+                    $vehiculosIds
+                )
+                ->where(
+                    'empresa_id',
+                    $empresaId
+                )
+                ->update([
+                    'flotilla_id' =>
+                        $flotilla->id,
+                ]);
         }
 
-        return redirect()->route('flotillas.index')->with('success', 'Flotilla actualizada correctamente.');
+        return redirect()
+            ->route(
+                'flotillas.index'
+            )
+            ->with(
+                'success',
+                'Flotilla actualizada correctamente.'
+            );
     }
 
-    public function destroy(Flotilla $flotilla)
-    {
-        $userActual = auth()->user();
+    /*
+    |--------------------------------------------------------------------------
+    | ELIMINAR
+    |--------------------------------------------------------------------------
+    */
 
-        if (!$userActual->hasRole('Super Administrador') && $flotilla->empresa_id !== $userActual->empresa_id) {
-            abort(403, 'Acceso denegado a esta flotilla.');
-        }
+    public function destroy(
+        Flotilla $flotilla
+    ) {
+        $this->validarAcceso(
+            $flotilla
+        );
 
-        // Si en la base de datos no tienes "onDelete('set null')" en la llave foránea,
-        // esto asegurará que los vehículos no se borren, solo se queden sin flotilla.
-        Vehiculo::where('flotilla_id', $flotilla->id)->update(['flotilla_id' => null]);
+        Vehiculo::query()
+            ->where(
+                'flotilla_id',
+                $flotilla->id
+            )
+            ->update([
+                'flotilla_id' =>
+                    null,
+            ]);
 
         $flotilla->delete();
-        
-        return redirect()->route('flotillas.index')->with('success', 'Flotilla eliminada correctamente.');
+
+        return redirect()
+            ->route(
+                'flotillas.index'
+            )
+            ->with(
+                'success',
+                'Flotilla eliminada correctamente.'
+            );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | VALIDAR ACCESO MULTI-TENANT
+    |--------------------------------------------------------------------------
+    */
+
+    private function validarAcceso(
+        Flotilla $flotilla
+    ): void {
+        $userActual =
+            auth()->user();
+
+        if (
+            !$userActual
+                ->hasRole(
+                    'Super Administrador'
+                )
+            &&
+            (int) $flotilla->empresa_id
+            !==
+            (int) $userActual->empresa_id
+        ) {
+
+            abort(
+                403,
+                'Acceso denegado a esta flotilla.'
+            );
+        }
     }
 }

@@ -3,65 +3,237 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 class RoleSeeder extends Seeder
 {
     public function run(): void
     {
-        // Limpiar caché de permisos de Spatie (evita errores al reconstruir la base de datos)
-        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        // 1. Crear Roles de la nueva jerarquía SaaS
-        $roleSuperAdmin = Role::create(['name' => 'Super Administrador']); // Personal de SOTyTECH
-        $roleAdminEmpresa = Role::create(['name' => 'Administrador de Empresa']); // Gerentes de corporativos
-        $roleGestor = Role::create(['name' => 'Gestor de flotilla']); // Empleados de corporativos
-        $roleCliente = Role::create(['name' => 'Cliente Individual']); // Clientes particulares (personas físicas)
-        $roleConductor = Role::create(['name' => 'Conductor']); // Nivel más bajo, solo visualización
+        /*
+        |--------------------------------------------------------------------------
+        | ROLES
+        |--------------------------------------------------------------------------
+        */
 
-        // 2. Crear Permisos (Reflejando todos los módulos del sistema)
-        Permission::create(['name' => 'ver mapas']);
-        Permission::create(['name' => 'gestionar empresas']); // Permiso maestro para crear clientes corporativos
-        Permission::create(['name' => 'gestionar usuarios']);
-        Permission::create(['name' => 'gestionar flotillas']);
-        Permission::create(['name' => 'gestionar vehiculos']);
-        Permission::create(['name' => 'gestionar dispositivos']);
-        Permission::create(['name' => 'gestionar zonas']);
-
-        // 3. Asignación Estratégica de Permisos
-
-        // Super Administrador: Acceso absoluto a la plataforma SaaS
-        $roleSuperAdmin->givePermissionTo(Permission::all());
-        
-        // Administrador de Empresa: Gestiona toda su compañía interna (empleados, vehículos, flotillas)
-        $roleAdminEmpresa->givePermissionTo([
-            'ver mapas', 
-            'gestionar usuarios', 
-            'gestionar flotillas', 
-            'gestionar vehiculos', 
-            'gestionar dispositivos', 
-            'gestionar zonas'
-        ]);
-        
-        // Gestor de flotilla: Operación logística diaria (sin control sobre creación de empleados)
-        $roleGestor->givePermissionTo([
-            'ver mapas', 
-            'gestionar vehiculos', 
-            'gestionar dispositivos', 
-            'gestionar zonas'
-        ]);
-        
-        // Cliente Individual: Usuario particular, interfaz simplificada directa a su auto y geocercas
-        $roleCliente->givePermissionTo([
-            'ver mapas', 
-            'gestionar vehiculos', 
-            'gestionar zonas'
+        $roleSuperAdmin = Role::firstOrCreate([
+            'name' => 'Super Administrador',
+            'guard_name' => 'web',
         ]);
 
-        // Conductor: Acceso mínimo, proyectado para uso futuro en app móvil
-        $roleConductor->givePermissionTo([
-            'ver mapas'
+        $roleAdminEmpresa = Role::firstOrCreate([
+            'name' => 'Administrador de Empresa',
+            'guard_name' => 'web',
         ]);
+
+        $roleGestor = Role::firstOrCreate([
+            'name' => 'Gestor de flotilla',
+            'guard_name' => 'web',
+        ]);
+
+        $roleCliente = Role::firstOrCreate([
+            'name' => 'Cliente Individual',
+            'guard_name' => 'web',
+        ]);
+
+        $roleConductor = Role::firstOrCreate([
+            'name' => 'Conductor',
+            'guard_name' => 'web',
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | PERMISOS DEL SISTEMA
+        |--------------------------------------------------------------------------
+        */
+
+        $permisos = [
+            'ver mapas',
+
+            'gestionar empresas',
+            'gestionar usuarios',
+            'gestionar flotillas',
+            'gestionar vehiculos',
+            'gestionar dispositivos',
+            'gestionar conductores',
+            'gestionar zonas',
+
+            'ver historial de rutas',
+            'ver dashboard',
+
+            'gestionar enlaces temporales',
+            'gestionar inspecciones',
+
+            'gestionar reportes',
+            'gestionar notificaciones',
+
+            'administrar respaldos',
+        ];
+
+        foreach ($permisos as $permiso) {
+
+            Permission::firstOrCreate([
+                'name' => $permiso,
+                'guard_name' => 'web',
+            ]);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | SUPER ADMINISTRADOR
+        |--------------------------------------------------------------------------
+        |
+        | Acceso completo a SotyGeo.
+        |
+        */
+
+        $roleSuperAdmin->syncPermissions(
+            $permisos
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | ADMINISTRADOR DE EMPRESA
+        |--------------------------------------------------------------------------
+        |
+        | FN.3  Gestionar usuarios
+        | FN.5  Gestionar vehículos
+        | FN.6  Gestionar equipos GPS
+        | FN.7  Gestionar conductores
+        | FN.8  Gestionar zonas
+        | FN.9  Gestionar flotillas
+        | FN.10 Monitoreo en vivo
+        | FN.11 Historial de rutas
+        | FN.12 Dashboard
+        | FN.13 Enlaces temporales
+        | FN.14 Inspecciones
+        | FN.15 - FN.20 Reportes
+        | FN.23 Notificaciones
+        |
+        */
+
+        $roleAdminEmpresa->syncPermissions([
+            'ver mapas',
+
+            'gestionar usuarios',
+            'gestionar flotillas',
+            'gestionar vehiculos',
+            'gestionar dispositivos',
+            'gestionar conductores',
+            'gestionar zonas',
+
+            'ver historial de rutas',
+            'ver dashboard',
+
+            'gestionar enlaces temporales',
+            'gestionar inspecciones',
+
+            'gestionar reportes',
+            'gestionar notificaciones',
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | GESTOR DE FLOTILLA
+        |--------------------------------------------------------------------------
+        |
+        | FN.5  Gestionar vehículos
+        | FN.6  Gestionar equipos GPS
+        | FN.7  Gestionar conductores
+        | FN.8  Gestionar zonas
+        | FN.9  Gestionar flotillas
+        | FN.10 Monitoreo en vivo
+        | FN.11 Historial de rutas
+        | FN.12 Dashboard
+        | FN.13 Enlaces temporales
+        | FN.14 Inspecciones
+        | FN.23 Notificaciones
+        |
+        */
+
+        $roleGestor->syncPermissions([
+            'ver mapas',
+
+            'gestionar flotillas',
+            'gestionar vehiculos',
+            'gestionar dispositivos',
+            'gestionar conductores',
+            'gestionar zonas',
+
+            'ver historial de rutas',
+            'ver dashboard',
+
+            'gestionar enlaces temporales',
+            'gestionar inspecciones',
+
+            'gestionar notificaciones',
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | CLIENTE INDIVIDUAL
+        |--------------------------------------------------------------------------
+        |
+        | FN.5  Gestionar vehículos
+        | FN.6  Gestionar equipos GPS
+        | FN.8  Gestionar zonas
+        | FN.10 Monitoreo en vivo
+        | FN.11 Historial de rutas
+        | FN.12 Dashboard
+        | FN.13 Enlaces temporales
+        | FN.23 Notificaciones
+        |
+        | IMPORTANTE:
+        | FN.14 NO incluye al Cliente para inspecciones.
+        |
+        */
+
+        $roleCliente->syncPermissions([
+            'ver mapas',
+
+            'gestionar vehiculos',
+            'gestionar dispositivos',
+            'gestionar zonas',
+
+            'ver historial de rutas',
+            'ver dashboard',
+
+            'gestionar enlaces temporales',
+
+            'gestionar notificaciones',
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | CONDUCTOR
+        |--------------------------------------------------------------------------
+        |
+        | En los requisitos aparece como "Chofer".
+        |
+        | FN.10 Monitoreo en vivo
+        | FN.11 Historial de rutas
+        | FN.12 Dashboard
+        | FN.13 Enlaces temporales
+        | FN.14 Inspecciones
+        | FN.23 Notificaciones
+        |
+        */
+
+        $roleConductor->syncPermissions([
+            'ver mapas',
+
+            'ver historial de rutas',
+            'ver dashboard',
+
+            'gestionar enlaces temporales',
+            'gestionar inspecciones',
+
+            'gestionar notificaciones',
+        ]);
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 }

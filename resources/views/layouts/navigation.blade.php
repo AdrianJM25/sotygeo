@@ -1,214 +1,1475 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="csrf-token" content="{{ csrf_token() }}">
-        <title>{{ config('app.name', 'SotyGeo') }}</title>
 
-        <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <title>{{ config('app.name', 'SotyGeo') }}</title>
 
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
-    </head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-    <!-- Fondo general gris claro para resaltar los paneles blancos -->
-    <body class="font-sans antialiased bg-gray-100 text-gray-900" x-data="{ sidebarOpen: false, sidebarMini: false }">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;500;600;700&family=Ubuntu:wght@300;400;500;700&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
+        rel="stylesheet"
+    >
 
-        <!-- Contenedor principal con separación externa (p-4) y entre elementos (gap-4) -->
-        <div class="flex h-screen overflow-hidden relative p-4 gap-4">
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin=""
+    >
 
-            <!-- Fondo oscuro transparente para móviles -->
-            <div x-show="sidebarOpen" x-transition.opacity @click="sidebarOpen = false" class="fixed inset-0 z-40 bg-gray-900/50 lg:hidden rounded-none"></div>
+    <script
+        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""
+    ></script>
 
-            <!-- Inyección del Sidebar -->
-            @include('sidebar')
+    @vite([
+        'resources/css/app.css',
+        'resources/js/app.js'
+    ])
 
-            <!-- Columna Derecha (Header + Contenido) con separación vertical (gap-4) -->
-            <div class="flex flex-col flex-1 w-full h-full overflow-hidden gap-4">
+    <style>
+        .material-symbols-rounded {
+            font-family: 'Material Symbols Rounded' !important;
+            font-weight: normal;
+            font-style: normal;
+            font-size: 24px;
+            line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            display: inline-block;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
+            -webkit-font-feature-settings: 'liga';
+            font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
+        }
+    </style>
+</head>
 
-                <!-- ================= HEADER EN FORMATO TARJETA ================= -->
-                <header x-data="{
-                            openPerfil: false,
-                            openNotificaciones: false,
-                            busqueda: '',
-                            notificacionesCount: 0,
-                            modulos: {{ Illuminate\Support\Js::from(
-                                collect([
-                                    ['nombre' => 'Dashboard', 'ruta' => route('dashboard'), 'activo' => request()->routeIs('dashboard')],
-                                ])
-                                ->when(auth()->user()->hasRole('Super Administrador'), fn($c) => $c->push([
-                                    'nombre' => 'Empresas', 'ruta' => route('empresas.index'), 'activo' => request()->routeIs('empresas.*'),
-                                ]))
-                                ->when(auth()->user()->hasAnyRole(['Super Administrador', 'Administrador de Empresa']), fn($c) => $c
-                                    ->push(['nombre' => 'Usuarios', 'ruta' => route('usuarios.index'), 'activo' => request()->routeIs('usuarios.*')])
-                                    ->push(['nombre' => 'Flotillas', 'ruta' => route('flotillas.index'), 'activo' => request()->routeIs('flotillas.*')])
-                                )
-                                ->when(auth()->user()->hasAnyRole(['Super Administrador', 'Administrador de Empresa', 'Gestor de flotilla', 'Cliente Individual']), fn($c) => $c
-                                    ->push(['nombre' => 'Vehículos', 'ruta' => route('vehiculos.index'), 'activo' => request()->routeIs('vehiculos.*')])
-                                    ->push(['nombre' => 'Dispositivos', 'ruta' => route('dispositivos.index'), 'activo' => request()->routeIs('dispositivos.*')])
-                                    ->push(['nombre' => 'Geocercas', 'ruta' => route('zonas.index'), 'activo' => request()->routeIs('zonas.*')])
-                                )
-                                ->values()
-                            ) }},
-                            get resultadosBusqueda() {
-                                if (this.busqueda.trim() === '') return [];
-                                const q = this.busqueda.toLowerCase();
-                                return this.modulos.filter(m => m.nombre.toLowerCase().includes(q));
-                            }
-                        }"
-                        class="flex items-center justify-between gap-4 px-6 py-4 bg-white border border-gray-200 shadow-sm rounded-2xl shrink-0 z-20">
+<body
+    class="font-['Ubuntu'] antialiased bg-gray-100 text-gray-900"
+    x-data="{
+        sidebarOpen: false,
+        sidebarMini: false
+    }"
+>
 
-                    <!-- Botón hamburguesa (sidebar móvil) -->
-                    <button @click="sidebarOpen = !sidebarOpen" class="text-gray-500 hover:text-gray-700 focus:outline-none lg:hidden shrink-0">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-                    </button>
+    <div class="relative flex h-screen gap-4 overflow-hidden p-4">
 
-                    <!-- ===== Buscador de módulos ===== -->
-                    <div class="hidden sm:block flex-1 max-w-md relative" @click.away="busqueda = ''">
-                        <div class="relative">
-                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z"></path>
-                                </svg>
+        <template x-if="sidebarOpen">
+            <div
+                x-transition.opacity
+                @click="sidebarOpen = false"
+                class="fixed inset-0 z-40 bg-gray-900/50 lg:hidden"
+            ></div>
+        </template>
+
+        @include('sidebar')
+
+        <div
+            class="flex h-full w-full flex-1 flex-col gap-4 overflow-hidden"
+        >
+
+            <header
+                x-data="{
+                    openPerfil: false,
+                    openNotificaciones: false,
+                    notificacionesCount: 0
+                }"
+                class="z-30 flex shrink-0 items-center justify-between
+                       gap-4 rounded-2xl border border-gray-200
+                       bg-white px-6 py-4 shadow-sm"
+            >
+
+                <button
+                    type="button"
+                    @click="
+                        sidebarOpen =
+                            !sidebarOpen
+                    "
+                    class="shrink-0 text-gray-500
+                           transition-colors
+                           hover:text-[#56928C]
+                           focus:outline-none
+                           lg:hidden"
+                >
+
+                    <span
+                        class="select-none whitespace-nowrap
+                               material-symbols-rounded
+                               text-[22px] font-normal not-italic
+                               normal-case leading-none tracking-normal
+                               antialiased
+                               [font-feature-settings:'liga']
+                               [font-variation-settings:'FILL'_0,'wght'_400,'GRAD'_0,'opsz'_24]"
+                    >
+                        menu
+                    </span>
+
+                </button>
+
+                <div
+                    id="moduleSearchContainer"
+                    class="relative hidden max-w-md flex-1 sm:block"
+                >
+
+                    <div class="relative">
+
+                        <span
+                            class="pointer-events-none absolute
+                                   inset-y-0 left-0 flex
+                                   items-center pl-3 text-gray-400"
+                        >
+
+                            <span
+                                class="select-none whitespace-nowrap
+                                       material-symbols-rounded
+                                       text-[19px] font-normal not-italic
+                                       normal-case leading-none tracking-normal
+                                       antialiased
+                                       [font-feature-settings:'liga']
+                                       [font-variation-settings:'FILL'_0,'wght'_400,'GRAD'_0,'opsz'_24]"
+                            >
+                                search
                             </span>
-                            <input type="text" x-model="busqueda" placeholder="Buscar módulo..."
-                                   class="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:ring-gray-900 focus:border-gray-900 transition-colors">
-                        </div>
 
-                        <div x-show="resultadosBusqueda.length > 0"
-                             x-transition:enter="transition ease-out duration-150"
-                             x-transition:enter-start="opacity-0 -translate-y-1"
-                             x-transition:enter-end="opacity-100 translate-y-0"
-                             x-transition:leave="transition ease-in duration-100"
-                             x-transition:leave-start="opacity-100"
-                             x-transition:leave-end="opacity-0"
-                             style="display: none;"
-                             class="absolute mt-2 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-40">
-                            <template x-for="modulo in resultadosBusqueda" :key="modulo.nombre">
-                                <a :href="modulo.ruta" class="flex items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                                    <span x-text="modulo.nombre"></span>
-                                    <span x-show="modulo.activo" class="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Actual</span>
-                                </a>
-                            </template>
-                        </div>
+                        </span>
 
-                        <div x-show="busqueda.trim() !== '' && resultadosBusqueda.length === 0"
-                             x-transition.opacity style="display: none;"
-                             class="absolute mt-2 w-full bg-white border border-gray-200 rounded-xl shadow-lg p-4 text-center text-sm text-gray-400 z-40">
-                            Sin resultados para "<span x-text="busqueda"></span>"
-                        </div>
+                        <input
+                            id="moduleSearchInput"
+                            type="text"
+                            placeholder="Buscar módulo..."
+                            autocomplete="off"
+                            class="w-full rounded-xl
+                                   border border-gray-200
+                                   bg-gray-50
+                                   py-2.5 pl-10 pr-10
+                                   text-sm text-gray-700
+                                   transition-colors
+                                   placeholder:text-gray-400
+                                   focus:border-[#56928C]
+                                   focus:ring-[#56928C]"
+                        >
+
+                        <button
+                            id="moduleSearchClear"
+                            type="button"
+                            title="Limpiar búsqueda"
+                            class="absolute inset-y-0 right-0
+                                   hidden items-center pr-3
+                                   text-gray-400
+                                   transition-colors
+                                   hover:text-gray-600"
+                        >
+
+                            <span
+                                class="select-none whitespace-nowrap
+                                       material-symbols-rounded
+                                       text-[18px] font-normal not-italic
+                                       normal-case leading-none tracking-normal
+                                       antialiased
+                                       [font-feature-settings:'liga']
+                                       [font-variation-settings:'FILL'_0,'wght'_400,'GRAD'_0,'opsz'_24]"
+                            >
+                                close
+                            </span>
+
+                        </button>
+
                     </div>
 
-                    <!-- ===== Acciones derecha ===== -->
-                    <div class="flex items-center gap-2 shrink-0">
+                    <div
+                        id="moduleSearchDropdown"
+                        class="absolute left-0 right-0 z-[100]
+                               mt-2 hidden
+                               max-h-[360px]
+                               overflow-y-auto
+                               rounded-xl
+                               border border-gray-200
+                               bg-white
+                               shadow-xl"
+                    >
 
-                        <!-- Campanita de notificaciones -->
-                        <div class="relative" @click.away="openNotificaciones = false">
-                            <button @click="openNotificaciones = !openNotificaciones"
-                                    class="relative p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-                                </svg>
-                                <span x-show="notificacionesCount > 0" style="display:none;" class="absolute -top-0.5 -right-0.5 flex h-4 w-4">
-                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                                    <span class="relative inline-flex items-center justify-center rounded-full h-4 w-4 bg-rose-500 text-white text-[9px] font-bold" x-text="notificacionesCount"></span>
-                                </span>
+                        <div
+                            id="moduleSearchLoading"
+                            class="flex items-center gap-3
+                                   px-4 py-4
+                                   text-sm text-gray-500"
+                        >
+
+                            <span
+                                class="animate-spin
+                                       select-none whitespace-nowrap
+                                       material-symbols-rounded
+                                       text-[20px] font-normal not-italic
+                                       normal-case leading-none tracking-normal
+                                       text-[#56928C]
+                                       antialiased
+                                       [font-feature-settings:'liga']
+                                       [font-variation-settings:'FILL'_0,'wght'_400,'GRAD'_0,'opsz'_24]"
+                            >
+                                progress_activity
+                            </span>
+
+                            <span>
+                                Cargando módulos...
+                            </span>
+
+                        </div>
+
+                        <div
+                            id="moduleSearchResults"
+                            class="hidden py-1"
+                        ></div>
+
+                        <div
+                            id="moduleSearchEmpty"
+                            class="hidden flex-col
+                                   items-center justify-center
+                                   gap-1 px-4 py-6
+                                   text-center"
+                        >
+
+                            <span
+                                class="select-none whitespace-nowrap
+                                       material-symbols-rounded
+                                       text-[30px] font-normal not-italic
+                                       normal-case leading-none tracking-normal
+                                       text-gray-300
+                                       antialiased
+                                       [font-feature-settings:'liga']
+                                       [font-variation-settings:'FILL'_0,'wght'_400,'GRAD'_0,'opsz'_24]"
+                            >
+                                search_off
+                            </span>
+
+                            <span
+                                class="text-sm font-medium text-gray-500"
+                            >
+                                No se encontró ningún módulo
+                            </span>
+
+                            <span
+                                id="moduleSearchEmptyText"
+                                class="text-xs text-gray-400"
+                            ></span>
+
+                        </div>
+
+                        <div
+                            id="moduleSearchError"
+                            class="hidden flex-col
+                                   items-center justify-center
+                                   gap-2 px-4 py-6
+                                   text-center"
+                        >
+
+                            <span
+                                class="select-none whitespace-nowrap
+                                       material-symbols-rounded
+                                       text-[30px] font-normal not-italic
+                                       normal-case leading-none tracking-normal
+                                       text-red-400
+                                       antialiased
+                                       [font-feature-settings:'liga']
+                                       [font-variation-settings:'FILL'_0,'wght'_400,'GRAD'_0,'opsz'_24]"
+                            >
+                                error
+                            </span>
+
+                            <span
+                                class="text-sm font-medium text-gray-600"
+                            >
+                                No se pudieron cargar los módulos
+                            </span>
+
+                            <button
+                                id="moduleSearchRetry"
+                                type="button"
+                                class="text-xs font-medium
+                                       text-[#56928C]
+                                       hover:underline"
+                            >
+                                Intentar nuevamente
                             </button>
 
-                            <div x-show="openNotificaciones"
-                                 x-transition:enter="transition ease-out duration-150"
-                                 x-transition:enter-start="opacity-0 -translate-y-2 scale-95"
-                                 x-transition:enter-end="opacity-100 translate-y-0 scale-100"
-                                 x-transition:leave="transition ease-in duration-100"
-                                 x-transition:leave-start="opacity-100 scale-100"
-                                 x-transition:leave-end="opacity-0 scale-95"
-                                 style="display: none;"
-                                 class="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden z-50">
+                        </div>
 
-                                <div class="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                                    <h3 class="text-sm font-bold text-gray-900">Notificaciones</h3>
-                                    <span class="text-xs text-gray-400" x-text="notificacionesCount + ' nuevas'"></span>
+                    </div>
+
+                </div>
+
+                <div
+                    class="flex shrink-0 items-center gap-2"
+                >
+
+                    <div
+                        class="relative"
+                        @click.outside="
+                            openNotificaciones = false
+                        "
+                    >
+
+                        <button
+                            type="button"
+                            @click="
+                                openNotificaciones =
+                                    !openNotificaciones
+                            "
+                            class="relative rounded-lg
+                                   p-2 text-gray-400
+                                   transition-colors
+                                   hover:bg-gray-100
+                                   hover:text-gray-700
+                                   focus:outline-none"
+                        >
+
+                            <span
+                                class="select-none whitespace-nowrap
+                                       material-symbols-rounded
+                                       text-[21px] font-normal not-italic
+                                       normal-case leading-none tracking-normal
+                                       antialiased
+                                       [font-feature-settings:'liga']
+                                       [font-variation-settings:'FILL'_0,'wght'_400,'GRAD'_0,'opsz'_24]"
+                            >
+                                notifications
+                            </span>
+
+                            <span
+                                x-show="
+                                    notificacionesCount > 0
+                                "
+                                class="absolute -right-0.5 -top-0.5
+                                       flex h-4 w-4"
+                            >
+
+                                <span
+                                    class="absolute inline-flex
+                                           h-full w-full
+                                           animate-ping
+                                           rounded-full
+                                           bg-rose-400
+                                           opacity-75"
+                                ></span>
+
+                                <span
+                                    class="relative inline-flex
+                                           h-4 w-4
+                                           items-center justify-center
+                                           rounded-full
+                                           bg-rose-500
+                                           text-[9px]
+                                           font-bold text-white"
+                                    x-text="
+                                        notificacionesCount
+                                    "
+                                ></span>
+
+                            </span>
+
+                        </button>
+
+                        <template
+                            x-if="
+                                openNotificaciones
+                            "
+                        >
+
+                            <div
+                                x-transition
+                                class="absolute right-0 z-50
+                                       mt-2 w-80
+                                       overflow-hidden
+                                       rounded-2xl
+                                       border border-gray-200
+                                       bg-white
+                                       shadow-xl"
+                            >
+
+                                <div
+                                    class="flex items-center
+                                           justify-between
+                                           border-b border-gray-100
+                                           bg-gray-50/50
+                                           p-4"
+                                >
+
+                                    <h3
+                                        class="text-sm font-bold
+                                               text-gray-900"
+                                    >
+                                        Notificaciones
+                                    </h3>
+
+                                    <span
+                                        class="text-xs text-gray-400"
+                                        x-text="
+                                            notificacionesCount
+                                            + ' nuevas'
+                                        "
+                                    ></span>
+
                                 </div>
 
                                 <div class="max-h-80 overflow-y-auto">
-                                    <div class="flex flex-col items-center justify-center gap-2 py-10 px-4 text-center">
-                                        <div class="w-10 h-10 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-                                            </svg>
+
+                                    <div
+                                        class="flex flex-col
+                                               items-center
+                                               justify-center
+                                               gap-2
+                                               px-4 py-10
+                                               text-center"
+                                    >
+
+                                        <div
+                                            class="flex h-10 w-10
+                                                   items-center
+                                                   justify-center
+                                                   rounded-full
+                                                   bg-gray-100
+                                                   text-gray-400"
+                                        >
+
+                                            <span
+                                                class="select-none whitespace-nowrap
+                                                       material-symbols-rounded
+                                                       text-[21px] font-normal not-italic
+                                                       normal-case leading-none tracking-normal
+                                                       antialiased
+                                                       [font-feature-settings:'liga']
+                                                       [font-variation-settings:'FILL'_0,'wght'_400,'GRAD'_0,'opsz'_24]"
+                                            >
+                                                notifications_none
+                                            </span>
+
                                         </div>
-                                        <p class="text-sm text-gray-500">No tienes notificaciones nuevas.</p>
+
+                                        <p class="text-sm text-gray-500">
+                                            No tienes notificaciones nuevas.
+                                        </p>
+
                                     </div>
+
                                 </div>
+
                             </div>
-                        </div>
 
-                        <!-- Avatar + Dropdown de perfil -->
-                        <div class="relative" @click.away="openPerfil = false">
-                            <button @click="openPerfil = !openPerfil"
-                                    class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none">
-                                <div class="w-8 h-8 rounded-full overflow-hidden bg-gray-900 text-white flex items-center justify-center text-xs font-bold shrink-0">
-                                    @if(auth()->user()->avatar_url)
-                                        <img src="{{ auth()->user()->avatar_url }}" class="w-full h-full object-cover" alt="{{ auth()->user()->nombre_completo }}">
-                                    @else
-                                        {{ mb_strtoupper(mb_substr(auth()->user()->nombre, 0, 1) . mb_substr(auth()->user()->apellido_paterno, 0, 1)) }}
-                                    @endif
-                                </div>
-                                <span class="hidden md:inline text-sm font-medium text-gray-700 max-w-[120px] truncate">{{ auth()->user()->nombre }}</span>
-                                <svg class="w-4 h-4 text-gray-400 transition-transform" :class="{ 'rotate-180': openPerfil }" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path>
-                                </svg>
-                            </button>
+                        </template>
 
-                            <div x-show="openPerfil"
-                                 x-transition:enter="transition ease-out duration-150"
-                                 x-transition:enter-start="opacity-0 -translate-y-2 scale-95"
-                                 x-transition:enter-end="opacity-100 translate-y-0 scale-100"
-                                 x-transition:leave="transition ease-in duration-100"
-                                 x-transition:leave-start="opacity-100 scale-100"
-                                 x-transition:leave-end="opacity-0 scale-95"
-                                 style="display: none;"
-                                 class="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden z-50">
+                    </div>
 
-                                <div class="p-4 border-b border-gray-100 bg-gray-50/50">
-                                    <p class="text-sm font-semibold text-gray-900 truncate">{{ auth()->user()->nombre_completo }}</p>
-                                    <p class="text-xs text-gray-400 truncate">{{ auth()->user()->email }}</p>
+                    <div
+                        class="relative"
+                        @click.outside="
+                            openPerfil = false
+                        "
+                    >
+
+                        <button
+                            type="button"
+                            @click="
+                                openPerfil =
+                                    !openPerfil
+                            "
+                            class="flex items-center
+                                   gap-2 rounded-lg
+                                   px-2 py-1.5
+                                   transition-colors
+                                   hover:bg-gray-100
+                                   focus:outline-none"
+                        >
+
+                            <div
+                                class="flex h-8 w-8
+                                       shrink-0
+                                       items-center justify-center
+                                       overflow-hidden
+                                       rounded-full
+                                       bg-gray-900
+                                       text-xs font-bold
+                                       text-white"
+                            >
+
+                                @if(auth()->user()->avatar_url)
+
+                                    <img
+                                        src="{{ auth()->user()->avatar_url }}"
+                                        class="h-full w-full object-cover"
+                                        alt="{{ auth()->user()->nombre_completo }}"
+                                    >
+
+                                @else
+
+                                    {{
+                                        mb_strtoupper(
+                                            mb_substr(
+                                                auth()->user()->nombre,
+                                                0,
+                                                1
+                                            )
+                                            .
+                                            mb_substr(
+                                                auth()->user()->apellido_paterno,
+                                                0,
+                                                1
+                                            )
+                                        )
+                                    }}
+
+                                @endif
+
+                            </div>
+
+                            <span
+                                class="hidden max-w-[120px]
+                                       truncate text-sm
+                                       font-medium text-gray-700
+                                       md:inline"
+                            >
+                                {{ auth()->user()->nombre }}
+                            </span>
+
+                            <span
+                                class="select-none whitespace-nowrap
+                                       material-symbols-rounded
+                                       text-[18px] font-normal not-italic
+                                       normal-case leading-none tracking-normal
+                                       text-gray-400
+                                       transition-transform
+                                       antialiased
+                                       [font-feature-settings:'liga']
+                                       [font-variation-settings:'FILL'_0,'wght'_400,'GRAD'_0,'opsz'_24]"
+                                :class="{
+                                    'rotate-180':
+                                        openPerfil
+                                }"
+                            >
+                                expand_more
+                            </span>
+
+                        </button>
+
+                        <template
+                            x-if="
+                                openPerfil
+                            "
+                        >
+
+                            <div
+                                x-transition
+                                class="absolute right-0 z-50
+                                       mt-2 w-56
+                                       overflow-hidden
+                                       rounded-2xl
+                                       border border-gray-200
+                                       bg-white
+                                       shadow-xl"
+                            >
+
+                                <div
+                                    class="border-b
+                                           border-gray-100
+                                           bg-gray-50/50
+                                           p-4"
+                                >
+
+                                    <p
+                                        class="truncate
+                                               text-sm
+                                               font-semibold
+                                               text-gray-900"
+                                    >
+                                        {{ auth()->user()->nombre_completo }}
+                                    </p>
+
+                                    <p
+                                        class="truncate
+                                               text-xs
+                                               text-gray-400"
+                                    >
+                                        {{ auth()->user()->email }}
+                                    </p>
+
                                 </div>
 
                                 <div class="py-1">
-                                    <a href="{{ route('profile.edit') }}" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                                        </svg>
-                                        Mi Perfil
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
 
-                        <!-- Botón de Salir (Expuesto) -->
-                        <form method="POST" action="{{ route('logout') }}" class="m-0 flex items-center">
-                            @csrf
-                            <button type="submit" title="Cerrar Sesión" class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors focus:outline-none">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
-                                </svg>
-                            </button>
-                        </form>
+                                    <a
+                                        href="{{ route('profile.edit') }}"
+                                        class="flex items-center
+                                               gap-2.5
+                                               px-4 py-2.5
+                                               text-sm
+                                               text-gray-700
+                                               transition-colors
+                                               hover:bg-gray-50"
+                                    >
+
+                                        <span
+                                            class="select-none whitespace-nowrap
+                                                   material-symbols-rounded
+                                                   text-[18px] font-normal not-italic
+                                                   normal-case leading-none tracking-normal
+                                                   text-gray-400
+                                                   antialiased
+                                                   [font-feature-settings:'liga']
+                                                   [font-variation-settings:'FILL'_0,'wght'_400,'GRAD'_0,'opsz'_24]"
+                                        >
+                                            person
+                                        </span>
+
+                                        Mi Perfil
+
+                                    </a>
+
+                                </div>
+
+                            </div>
+
+                        </template>
 
                     </div>
-                </header>
 
-                <!-- Contenido Principal -->
-                <main class="flex-1 overflow-x-hidden overflow-y-auto">
-                    {{ $slot }}
-                </main>
+                    <form
+                        method="POST"
+                        action="{{ route('logout') }}"
+                        class="m-0 flex items-center"
+                    >
 
-            </div>
+                        @csrf
+
+                        <button
+                            type="submit"
+                            title="Cerrar Sesión"
+                            class="rounded-lg
+                                   p-2 text-gray-400
+                                   transition-colors
+                                   hover:bg-red-50
+                                   hover:text-red-600
+                                   focus:outline-none"
+                        >
+
+                            <span
+                                class="select-none whitespace-nowrap
+                                       material-symbols-rounded
+                                       text-[21px] font-normal not-italic
+                                       normal-case leading-none tracking-normal
+                                       antialiased
+                                       [font-feature-settings:'liga']
+                                       [font-variation-settings:'FILL'_0,'wght'_400,'GRAD'_0,'opsz'_24]"
+                            >
+                                logout
+                            </span>
+
+                        </button>
+
+                    </form>
+
+                </div>
+
+            </header>
+
+            <main
+                class="flex-1 overflow-x-hidden overflow-y-auto"
+            >
+                {{ $slot }}
+            </main>
+
         </div>
-    </body>
+
+    </div>
+
+    <script>
+        document.addEventListener(
+            'DOMContentLoaded',
+            function () {
+
+                const input =
+                    document.getElementById(
+                        'moduleSearchInput'
+                    );
+
+                const container =
+                    document.getElementById(
+                        'moduleSearchContainer'
+                    );
+
+                const dropdown =
+                    document.getElementById(
+                        'moduleSearchDropdown'
+                    );
+
+                const clearButton =
+                    document.getElementById(
+                        'moduleSearchClear'
+                    );
+
+                const loading =
+                    document.getElementById(
+                        'moduleSearchLoading'
+                    );
+
+                const results =
+                    document.getElementById(
+                        'moduleSearchResults'
+                    );
+
+                const empty =
+                    document.getElementById(
+                        'moduleSearchEmpty'
+                    );
+
+                const emptyText =
+                    document.getElementById(
+                        'moduleSearchEmptyText'
+                    );
+
+                const errorBox =
+                    document.getElementById(
+                        'moduleSearchError'
+                    );
+
+                const retryButton =
+                    document.getElementById(
+                        'moduleSearchRetry'
+                    );
+
+                if (
+                    !input ||
+                    !container ||
+                    !dropdown
+                ) {
+                    return;
+                }
+
+                const endpoint =
+                    @json(
+                        route(
+                            'modulos.buscar'
+                        )
+                    );
+
+                const currentRouteName =
+                    @json(
+                        request()->route()
+                            ? request()->route()->getName()
+                            : null
+                    );
+
+                let modulos = [];
+
+                let cargando = false;
+
+                let huboError = false;
+
+                function normalizar(
+                    texto
+                ) {
+
+                    return String(
+                        texto ?? ''
+                    )
+                        .normalize(
+                            'NFD'
+                        )
+                        .replace(
+                            /[\u0300-\u036f]/g,
+                            ''
+                        )
+                        .toLowerCase()
+                        .trim();
+
+                }
+
+                function esModuloActual(
+                    modulo
+                ) {
+
+                    if (
+                        !currentRouteName ||
+                        !modulo.nombre_ruta
+                    ) {
+                        return false;
+                    }
+
+                    if (
+                        modulo.nombre_ruta ===
+                        'dashboard'
+                    ) {
+
+                        return (
+                            currentRouteName ===
+                            'dashboard'
+                        );
+
+                    }
+
+                    if (
+                        modulo.nombre_ruta ===
+                        'geocercas.historial'
+                    ) {
+
+                        return (
+                            currentRouteName ===
+                            'geocercas.historial'
+                        );
+
+                    }
+
+                    const base =
+                        modulo.nombre_ruta
+                            .split('.')[0];
+
+                    return (
+                        currentRouteName ===
+                        modulo.nombre_ruta
+
+                        ||
+
+                        currentRouteName
+                            .startsWith(
+                                base + '.'
+                            )
+                    );
+
+                }
+
+                function ocultarEstados() {
+
+                    loading
+                        .classList
+                        .add(
+                            'hidden'
+                        );
+
+                    results
+                        .classList
+                        .add(
+                            'hidden'
+                        );
+
+                    empty
+                        .classList
+                        .add(
+                            'hidden'
+                        );
+
+                    empty
+                        .classList
+                        .remove(
+                            'flex'
+                        );
+
+                    errorBox
+                        .classList
+                        .add(
+                            'hidden'
+                        );
+
+                    errorBox
+                        .classList
+                        .remove(
+                            'flex'
+                        );
+
+                }
+
+                function abrirDropdown() {
+
+                    dropdown
+                        .classList
+                        .remove(
+                            'hidden'
+                        );
+
+                }
+
+                function cerrarDropdown() {
+
+                    dropdown
+                        .classList
+                        .add(
+                            'hidden'
+                        );
+
+                }
+
+                function crearResultado(
+                    modulo
+                ) {
+
+                    const link =
+                        document.createElement(
+                            'a'
+                        );
+
+                    link.href =
+                        modulo.ruta;
+
+                    link.className =
+                        'flex items-center justify-between gap-3 ' +
+                        'px-4 py-3 text-sm text-gray-700 ' +
+                        'transition-colors hover:bg-[#56928C]/10';
+
+                    const izquierda =
+                        document.createElement(
+                            'div'
+                        );
+
+                    izquierda.className =
+                        'flex min-w-0 items-center gap-3';
+
+                    const iconoCaja =
+                        document.createElement(
+                            'span'
+                        );
+
+                    iconoCaja.className =
+                        'flex h-9 w-9 shrink-0 items-center ' +
+                        'justify-center rounded-lg ' +
+                        'bg-[#56928C]/10 text-[#56928C]';
+
+                    const icono =
+                        document.createElement(
+                            'span'
+                        );
+
+                    icono.className =
+                        "select-none whitespace-nowrap " +
+                        "material-symbols-rounded " +
+                        "text-[18px] font-normal not-italic " +
+                        "normal-case leading-none tracking-normal " +
+                        "antialiased " +
+                        "[font-feature-settings:'liga'] " +
+                        "[font-variation-settings:'FILL'_0,'wght'_400,'GRAD'_0,'opsz'_24]";
+
+                    icono.textContent =
+                        'apps';
+
+                    iconoCaja.appendChild(
+                        icono
+                    );
+
+                    const nombre =
+                        document.createElement(
+                            'span'
+                        );
+
+                    nombre.className =
+                        'truncate font-medium';
+
+                    nombre.textContent =
+                        modulo.nombre;
+
+                    izquierda.appendChild(
+                        iconoCaja
+                    );
+
+                    izquierda.appendChild(
+                        nombre
+                    );
+
+                    const derecha =
+                        document.createElement(
+                            'div'
+                        );
+
+                    derecha.className =
+                        'flex shrink-0 items-center gap-2';
+
+                    if (
+                        esModuloActual(
+                            modulo
+                        )
+                    ) {
+
+                        const actual =
+                            document.createElement(
+                                'span'
+                            );
+
+                        actual.className =
+                            'rounded-full ' +
+                            'bg-[#56928C]/10 ' +
+                            'px-2 py-1 ' +
+                            'text-[10px] ' +
+                            'font-semibold ' +
+                            'text-[#3A6B66]';
+
+                        actual.textContent =
+                            'Actual';
+
+                        derecha.appendChild(
+                            actual
+                        );
+
+                    }
+
+                    const flecha =
+                        document.createElement(
+                            'span'
+                        );
+
+                    flecha.className =
+                        "select-none whitespace-nowrap " +
+                        "material-symbols-rounded " +
+                        "text-[17px] font-normal not-italic " +
+                        "normal-case leading-none tracking-normal " +
+                        "text-gray-300 antialiased " +
+                        "[font-feature-settings:'liga'] " +
+                        "[font-variation-settings:'FILL'_0,'wght'_400,'GRAD'_0,'opsz'_24]";
+
+                    flecha.textContent =
+                        'arrow_forward';
+
+                    derecha.appendChild(
+                        flecha
+                    );
+
+                    link.appendChild(
+                        izquierda
+                    );
+
+                    link.appendChild(
+                        derecha
+                    );
+
+                    return link;
+
+                }
+
+                function actualizarResultados() {
+
+                    const texto =
+                        normalizar(
+                            input.value
+                        );
+
+                    if (
+                        input.value.length > 0
+                    ) {
+
+                        clearButton
+                            .classList
+                            .remove(
+                                'hidden'
+                            );
+
+                        clearButton
+                            .classList
+                            .add(
+                                'flex'
+                            );
+
+                    }
+
+                    else {
+
+                        clearButton
+                            .classList
+                            .add(
+                                'hidden'
+                            );
+
+                        clearButton
+                            .classList
+                            .remove(
+                                'flex'
+                            );
+
+                    }
+
+                    if (
+                        texto === ''
+                    ) {
+
+                        cerrarDropdown();
+
+                        return;
+
+                    }
+
+                    abrirDropdown();
+
+                    ocultarEstados();
+
+                    if (
+                        cargando
+                    ) {
+
+                        loading
+                            .classList
+                            .remove(
+                                'hidden'
+                            );
+
+                        return;
+
+                    }
+
+                    if (
+                        huboError
+                    ) {
+
+                        errorBox
+                            .classList
+                            .remove(
+                                'hidden'
+                            );
+
+                        errorBox
+                            .classList
+                            .add(
+                                'flex'
+                            );
+
+                        return;
+
+                    }
+
+                    const filtrados =
+                        modulos.filter(
+
+                            function (
+                                modulo
+                            ) {
+
+                                const nombre =
+                                    normalizar(
+                                        modulo.nombre
+                                    );
+
+                                const nombreRuta =
+                                    normalizar(
+                                        modulo.nombre_ruta
+                                    );
+
+                                return (
+
+                                    nombre.includes(
+                                        texto
+                                    )
+
+                                    ||
+
+                                    nombreRuta.includes(
+                                        texto
+                                    )
+
+                                );
+
+                            }
+
+                        );
+
+                    results.innerHTML =
+                        '';
+
+                    if (
+                        filtrados.length === 0
+                    ) {
+
+                        emptyText.textContent =
+                            'Búsqueda: '
+                            +
+                            input.value;
+
+                        empty
+                            .classList
+                            .remove(
+                                'hidden'
+                            );
+
+                        empty
+                            .classList
+                            .add(
+                                'flex'
+                            );
+
+                        return;
+
+                    }
+
+                    filtrados.forEach(
+
+                        function (
+                            modulo
+                        ) {
+
+                            results
+                                .appendChild(
+
+                                    crearResultado(
+                                        modulo
+                                    )
+
+                                );
+
+                        }
+
+                    );
+
+                    results
+                        .classList
+                        .remove(
+                            'hidden'
+                        );
+
+                }
+
+                async function cargarModulos() {
+
+                    cargando =
+                        true;
+
+                    huboError =
+                        false;
+
+                    try {
+
+                        const response =
+
+                            await fetch(
+
+                                endpoint,
+
+                                {
+
+                                    method:
+                                        'GET',
+
+                                    credentials:
+                                        'same-origin',
+
+                                    headers: {
+
+                                        'Accept':
+                                            'application/json',
+
+                                        'X-Requested-With':
+                                            'XMLHttpRequest'
+
+                                    }
+
+                                }
+
+                            );
+
+                        if (
+                            !response.ok
+                        ) {
+
+                            throw new Error(
+
+                                'Error HTTP '
+                                +
+                                response.status
+
+                            );
+
+                        }
+
+                        const datos =
+
+                            await response
+                                .json();
+
+                        modulos =
+
+                            Array.isArray(
+                                datos
+                            )
+
+                                ?
+
+                                datos
+
+                                :
+
+                                [];
+
+                    }
+
+                    catch (
+                        error
+                    ) {
+
+                        console.error(
+
+                            'Error al cargar módulos:',
+
+                            error
+
+                        );
+
+                        modulos =
+                            [];
+
+                        huboError =
+                            true;
+
+                    }
+
+                    finally {
+
+                        cargando =
+                            false;
+
+                        actualizarResultados();
+
+                    }
+
+                }
+
+                input.addEventListener(
+
+                    'input',
+
+                    actualizarResultados
+
+                );
+
+                input.addEventListener(
+
+                    'focus',
+
+                    function () {
+
+                        if (
+                            input.value
+                                .trim() !== ''
+                        ) {
+
+                            actualizarResultados();
+
+                        }
+
+                    }
+
+                );
+
+                input.addEventListener(
+
+                    'keydown',
+
+                    function (
+                        event
+                    ) {
+
+                        if (
+                            event.key ===
+                            'Escape'
+                        ) {
+
+                            input.value =
+                                '';
+
+                            actualizarResultados();
+
+                            input.blur();
+
+                        }
+
+                        if (
+                            event.key ===
+                            'Enter'
+                        ) {
+
+                            const primerResultado =
+
+                                results
+                                    .querySelector(
+                                        'a'
+                                    );
+
+                            if (
+                                primerResultado
+                            ) {
+
+                                event
+                                    .preventDefault();
+
+                                window.location.href =
+                                    primerResultado
+                                        .href;
+
+                            }
+
+                        }
+
+                    }
+
+                );
+
+                clearButton
+                    .addEventListener(
+
+                        'click',
+
+                        function () {
+
+                            input.value =
+                                '';
+
+                            actualizarResultados();
+
+                            input.focus();
+
+                        }
+
+                    );
+
+                retryButton
+                    .addEventListener(
+
+                        'click',
+
+                        cargarModulos
+
+                    );
+
+                document.addEventListener(
+
+                    'click',
+
+                    function (
+                        event
+                    ) {
+
+                        if (
+
+                            !container.contains(
+                                event.target
+                            )
+
+                        ) {
+
+                            cerrarDropdown();
+
+                        }
+
+                    }
+
+                );
+
+                cargarModulos();
+
+            }
+
+        );
+
+    </script>
+
+</body>
+
 </html>

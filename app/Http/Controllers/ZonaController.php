@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Zona;
-use App\Models\Vehiculo;
 use App\Models\Empresa;
 use App\Models\User;
+use App\Models\Vehiculo;
+use App\Models\Zona;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 
 class ZonaController extends Controller
 {
@@ -17,232 +17,975 @@ class ZonaController extends Controller
         $user = auth()->user();
 
         $query = Zona::select(
-            'id', 'empresa_id', 'user_id', 'nombre', 'color_hex',
+            'id',
+            'empresa_id',
+            'user_id',
+            'nombre',
+            'color_hex',
             DB::raw('ST_AsGeoJSON(poligono) as geojson'),
             'created_at'
-        )->with(['vehiculos']);
+        )
+        ->with([
+            'vehiculos',
+            'empresa',
+            'usuario',
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | FILTRO MULTI-TENANT
+        |--------------------------------------------------------------------------
+        */
 
         if ($user->hasRole('Cliente Individual')) {
-            $query->where('user_id', $user->id);
-            $vehiculos = Vehiculo::where('user_id', $user->id)->get();
+
+            $query->where(
+                'user_id',
+                $user->id
+            );
+
+            $vehiculos = Vehiculo::where(
+                'user_id',
+                $user->id
+            )
+            ->orderBy('nombre')
+            ->get();
+
             $empresas = collect();
+            $clientes = collect();
+
         } elseif (!$user->hasRole('Super Administrador')) {
-            $query->where('empresa_id', $user->empresa_id);
-            $vehiculos = Vehiculo::where('empresa_id', $user->empresa_id)->get();
-            $empresas = collect([$user->empresa]);
+
+            $query->where(
+                'empresa_id',
+                $user->empresa_id
+            );
+
+            $vehiculos = Vehiculo::where(
+                'empresa_id',
+                $user->empresa_id
+            )
+            ->orderBy('nombre')
+            ->get();
+
+            $empresas = collect([
+                $user->empresa
+            ]);
+
+            $clientes = collect();
+
         } else {
-            $vehiculos = Vehiculo::all();
-            $empresas = Empresa::orderBy('nombre')->get();
+
+            $vehiculos = Vehiculo::orderBy('nombre')
+                ->get();
+
+            $empresas = Empresa::orderBy('nombre')
+                ->get();
+
+            $clientes = User::role('Cliente Individual')
+                ->orderBy('nombre')
+                ->get();
         }
 
-        $zonas = $query->latest()->get();
+        $zonas = $query
+            ->latest()
+            ->get();
 
-        return view('zonas.index', compact('zonas', 'vehiculos', 'empresas'));
+        return view(
+            'zonas.index',
+            compact(
+                'zonas',
+                'vehiculos',
+                'empresas',
+                'clientes'
+            )
+        );
     }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | REGISTRAR ZONA
+    |--------------------------------------------------------------------------
+    */
 
     public function store(Request $request)
     {
         $user = auth()->user();
 
-        $request->validate([
-            'nombre' => 'required|string|max:255',
-            'color_hex' => 'required|string|max:7',
-            'coordenadas' => 'required|string',
-            'empresa_id' => $user->hasRole('Super Administrador') ? 'nullable|exists:empresas,id' : 'nullable',
-            'user_id' => $user->hasRole('Super Administrador') ? 'nullable|exists:users,id' : 'nullable',
-            'vehiculos' => 'nullable|array',
-            'vehiculos.*.id' => 'required|exists:vehiculos,id',
-            'vehiculos.*.tipo_regla' => 'required|in:permitida,restringida,informativa',
-            'vehiculos.*.notificar_entrada' => 'nullable|boolean',
-            'vehiculos.*.notificar_salida' => 'nullable|boolean',
-            'vehiculos.*.permanencia_minima_minutos' => 'nullable|integer|min:1',
-            'vehiculos.*.permanencia_maxima_minutos' => 'nullable|integer|min:1',
-        ]);
+        $reglas = [
+            'nombre' => [
+                'required',
+                'string',
+                'max:255',
+            ],
 
-        $empresa_id = $user->hasRole('Super Administrador') ? $request->empresa_id : ($user->hasRole('Cliente Individual') ? null : $user->empresa_id);
-        $user_id = $user->hasRole('Super Administrador') ? $request->user_id : ($user->hasRole('Cliente Individual') ? $user->id : null);
+            'color_hex' => [
+                'required',
+                'regex:/^#[0-9A-Fa-f]{6}$/',
+            ],
 
-        $stringPoligono = $this->parsearCoordenadasAPolígono($request->coordenadas);
-        if (!$stringPoligono) {
-            return back()->withErrors(['coordenadas' => 'Debes dibujar un polígono válido con al menos 3 puntos.'])->withInput();
-        }
+            'coordenadas' => [
+                'required',
+                'string',
+            ],
 
-        $zona = Zona::create([
-            'empresa_id' => $empresa_id,
-            'user_id' => $user_id,
-            'nombre' => $request->nombre,
-            'color_hex' => $request->color_hex,
-            'poligono' => DB::raw("ST_GeomFromText('$stringPoligono', 4326)")
-        ]);
+            'vehiculos' => [
+                'nullable',
+                'array',
+            ],
 
-        if ($request->has('vehiculos')) {
-            $error = $this->sincronizarVehiculos($zona, $request->input('vehiculos'));
-            if ($error) {
-                // La zona ya se creó; avisamos que algunos vehículos no se pudieron vincular.
-                return redirect()->route('zonas.index')->with('warning', $error);
-            }
-        }
+            'vehiculos.*.id' => [
+                'required',
+                'exists:vehiculos,id',
+            ],
 
-        return redirect()->route('zonas.index')->with('success', 'Geocerca creada correctamente.');
-    }
+            'vehiculos.*.tipo_regla' => [
+                'required',
+                'in:permitida,restringida,informativa',
+            ],
 
-    public function update(Request $request, Zona $zona)
-    {
-        $this->verificarPropiedadZona($zona);
+            'vehiculos.*.notificar_entrada' => [
+                'nullable',
+                'boolean',
+            ],
 
-        $request->validate([
-            'nombre' => 'required|string|max:255',
-            'color_hex' => 'required|string|max:7',
-            'coordenadas' => 'nullable|string',
-            'vehiculos' => 'nullable|array',
-            'vehiculos.*.id' => 'required|exists:vehiculos,id',
-            'vehiculos.*.tipo_regla' => 'required|in:permitida,restringida,informativa',
-            'vehiculos.*.notificar_entrada' => 'nullable|boolean',
-            'vehiculos.*.notificar_salida' => 'nullable|boolean',
-            'vehiculos.*.permanencia_minima_minutos' => 'nullable|integer|min:1',
-            'vehiculos.*.permanencia_maxima_minutos' => 'nullable|integer|min:1',
-        ]);
+            'vehiculos.*.notificar_salida' => [
+                'nullable',
+                'boolean',
+            ],
 
-        $datosActualizar = [
-            'nombre' => $request->nombre,
-            'color_hex' => $request->color_hex,
+            'vehiculos.*.permanencia_minima_minutos' => [
+                'nullable',
+                'integer',
+                'min:1',
+            ],
+
+            'vehiculos.*.permanencia_maxima_minutos' => [
+                'nullable',
+                'integer',
+                'min:1',
+            ],
         ];
 
-        if ($request->filled('coordenadas')) {
-            $stringPoligono = $this->parsearCoordenadasAPolígono($request->coordenadas);
-            if ($stringPoligono) {
-                $datosActualizar['poligono'] = DB::raw("ST_GeomFromText('$stringPoligono', 4326)");
-            }
+        if ($user->hasRole('Super Administrador')) {
+            $reglas['propietario'] = [
+                'required',
+                'string',
+            ];
         }
 
-        $zona->update($datosActualizar);
+        $datos = $request->validate($reglas);
 
-        $error = $this->sincronizarVehiculos($zona, $request->input('vehiculos', []));
-        if ($error) {
-            return redirect()->route('zonas.index')->with('warning', $error);
+
+        /*
+        |--------------------------------------------------------------------------
+        | DETERMINAR PROPIETARIO
+        |--------------------------------------------------------------------------
+        */
+
+        [$empresaId, $userId] =
+            $this->resolverPropietario(
+                $request
+            );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | VALIDAR POLÍGONO
+        |--------------------------------------------------------------------------
+        */
+
+        $stringPoligono =
+            $this->parsearCoordenadasAPoligono(
+                $request->coordenadas
+            );
+
+        if (!$stringPoligono) {
+
+            throw ValidationException::withMessages([
+                'coordenadas' =>
+                    'Debes dibujar un polígono válido con al menos 3 puntos.',
+            ]);
         }
 
-        return redirect()->route('zonas.index')->with('success', 'Geocerca actualizada correctamente.');
+
+        /*
+        |--------------------------------------------------------------------------
+        | PREPARAR VEHÍCULOS
+        |--------------------------------------------------------------------------
+        */
+
+        $syncData =
+            $this->prepararVehiculos(
+                $request->input(
+                    'vehiculos',
+                    []
+                ),
+                $empresaId,
+                $userId
+            );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | CREAR EN TRANSACCIÓN
+        |--------------------------------------------------------------------------
+        */
+
+        DB::transaction(function () use (
+            $datos,
+            $empresaId,
+            $userId,
+            $stringPoligono,
+            $syncData
+        ) {
+
+            $zona = Zona::create([
+                'empresa_id' =>
+                    $empresaId,
+
+                'user_id' =>
+                    $userId,
+
+                'nombre' =>
+                    $datos['nombre'],
+
+                'color_hex' =>
+                    $datos['color_hex'],
+
+                'poligono' =>
+                    DB::raw(
+                        "ST_GeomFromText('$stringPoligono', 4326)"
+                    ),
+            ]);
+
+            $zona->vehiculos()->sync(
+                $syncData
+            );
+        });
+
+
+        return redirect()
+            ->route('zonas.index')
+            ->with(
+                'success',
+                'Geocerca creada correctamente.'
+            );
     }
 
-    public function destroy(Zona $zona)
-    {
-        $this->verificarPropiedadZona($zona);
+
+    /*
+    |--------------------------------------------------------------------------
+    | ACTUALIZAR
+    |--------------------------------------------------------------------------
+    */
+
+    public function update(
+        Request $request,
+        Zona $zona
+    ) {
+
+        $this->verificarPropiedadZona(
+            $zona
+        );
+
+        $user = auth()->user();
+
+        $reglas = [
+            'nombre' => [
+                'required',
+                'string',
+                'max:255',
+            ],
+
+            'color_hex' => [
+                'required',
+                'regex:/^#[0-9A-Fa-f]{6}$/',
+            ],
+
+            'coordenadas' => [
+                'nullable',
+                'string',
+            ],
+
+            'vehiculos' => [
+                'nullable',
+                'array',
+            ],
+
+            'vehiculos.*.id' => [
+                'required',
+                'exists:vehiculos,id',
+            ],
+
+            'vehiculos.*.tipo_regla' => [
+                'required',
+                'in:permitida,restringida,informativa',
+            ],
+
+            'vehiculos.*.notificar_entrada' => [
+                'nullable',
+                'boolean',
+            ],
+
+            'vehiculos.*.notificar_salida' => [
+                'nullable',
+                'boolean',
+            ],
+
+            'vehiculos.*.permanencia_minima_minutos' => [
+                'nullable',
+                'integer',
+                'min:1',
+            ],
+
+            'vehiculos.*.permanencia_maxima_minutos' => [
+                'nullable',
+                'integer',
+                'min:1',
+            ],
+        ];
+
+        if ($user->hasRole('Super Administrador')) {
+            $reglas['propietario'] = [
+                'required',
+                'string',
+            ];
+        }
+
+        $datos = $request->validate(
+            $reglas
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | PROPIETARIO
+        |--------------------------------------------------------------------------
+        */
+
+        [$empresaId, $userId] =
+            $this->resolverPropietario(
+                $request,
+                $zona
+            );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | VEHÍCULOS
+        |--------------------------------------------------------------------------
+        */
+
+        $syncData =
+            $this->prepararVehiculos(
+                $request->input(
+                    'vehiculos',
+                    []
+                ),
+                $empresaId,
+                $userId
+            );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | DATOS GENERALES
+        |--------------------------------------------------------------------------
+        */
+
+        $datosActualizar = [
+            'empresa_id' =>
+                $empresaId,
+
+            'user_id' =>
+                $userId,
+
+            'nombre' =>
+                $datos['nombre'],
+
+            'color_hex' =>
+                $datos['color_hex'],
+        ];
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | POLÍGONO
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            $request->filled(
+                'coordenadas'
+            )
+        ) {
+
+            $stringPoligono =
+                $this->parsearCoordenadasAPoligono(
+                    $request->coordenadas
+                );
+
+            if (!$stringPoligono) {
+
+                throw ValidationException::withMessages([
+                    'coordenadas' =>
+                        'El polígono de la geocerca no es válido.',
+                ]);
+            }
+
+            $datosActualizar['poligono'] =
+                DB::raw(
+                    "ST_GeomFromText('$stringPoligono', 4326)"
+                );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | ACTUALIZAR EN TRANSACCIÓN
+        |--------------------------------------------------------------------------
+        */
+
+        DB::transaction(function () use (
+            $zona,
+            $datosActualizar,
+            $syncData
+        ) {
+
+            $zona->update(
+                $datosActualizar
+            );
+
+            $zona->vehiculos()->sync(
+                $syncData
+            );
+        });
+
+
+        return redirect()
+            ->route('zonas.index')
+            ->with(
+                'success',
+                'Geocerca actualizada correctamente.'
+            );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | ELIMINAR
+    |--------------------------------------------------------------------------
+    */
+
+    public function destroy(
+        Zona $zona
+    ) {
+
+        $this->verificarPropiedadZona(
+            $zona
+        );
+
         $zona->delete();
 
-        return redirect()->route('zonas.index')->with('success', 'Geocerca eliminada correctamente.');
+        return redirect()
+            ->route('zonas.index')
+            ->with(
+                'success',
+                'Geocerca eliminada correctamente.'
+            );
     }
 
-    private function parsearCoordenadasAPolígono(string $jsonCoordenadas): ?string
-    {
-        $coordenadas = json_decode($jsonCoordenadas, true);
 
-        if (!$coordenadas || count($coordenadas) < 3) {
-            return null;
+    /*
+    |--------------------------------------------------------------------------
+    | RESOLVER PROPIETARIO
+    |--------------------------------------------------------------------------
+    */
+
+    private function resolverPropietario(
+        Request $request,
+        ?Zona $zona = null
+    ): array {
+
+        $user = auth()->user();
+
+
+        /*
+        | Cliente Individual
+        */
+
+        if (
+            $user->hasRole(
+                'Cliente Individual'
+            )
+        ) {
+
+            return [
+                null,
+                $user->id,
+            ];
         }
 
-        $puntos = [];
-        foreach ($coordenadas as $coord) {
-            $puntos[] = $coord['lng'] . ' ' . $coord['lat'];
+
+        /*
+        | Administrador / Gestor
+        */
+
+        if (
+            !$user->hasRole(
+                'Super Administrador'
+            )
+        ) {
+
+            return [
+                $user->empresa_id,
+                null,
+            ];
         }
 
-        if ($puntos[0] !== end($puntos)) {
-            $puntos[] = $puntos[0];
+
+        /*
+        | Super Administrador
+        */
+
+        $propietario =
+            $request->input(
+                'propietario'
+            );
+
+
+        if (
+            str_starts_with(
+                $propietario,
+                'empresa:'
+            )
+        ) {
+
+            $empresaId =
+                (int) str_replace(
+                    'empresa:',
+                    '',
+                    $propietario
+                );
+
+            if (
+                !Empresa::where(
+                    'id',
+                    $empresaId
+                )->exists()
+            ) {
+
+                throw ValidationException::withMessages([
+                    'propietario' =>
+                        'La empresa seleccionada no existe.',
+                ]);
+            }
+
+            return [
+                $empresaId,
+                null,
+            ];
         }
 
-        return 'POLYGON((' . implode(',', $puntos) . '))';
+
+        if (
+            str_starts_with(
+                $propietario,
+                'cliente:'
+            )
+        ) {
+
+            $userId =
+                (int) str_replace(
+                    'cliente:',
+                    '',
+                    $propietario
+                );
+
+            $cliente =
+                User::findOrFail(
+                    $userId
+                );
+
+            if (
+                !$cliente->hasRole(
+                    'Cliente Individual'
+                )
+            ) {
+
+                throw ValidationException::withMessages([
+                    'propietario' =>
+                        'El usuario seleccionado debe ser un Cliente Individual.',
+                ]);
+            }
+
+            return [
+                null,
+                $userId,
+            ];
+        }
+
+
+        throw ValidationException::withMessages([
+            'propietario' =>
+                'Selecciona una empresa o un cliente individual.',
+        ]);
     }
 
-    /**
-     * Sincroniza los vehículos en la tabla pivote vehiculo_zona.
-     * Filtra (y reporta) cualquier vehículo que no pertenezca al mismo
-     * dueño de la zona (empresa o Cliente Individual), en vez de vincularlo
-     * silenciosamente. Devuelve un mensaje de advertencia si hubo rechazos,
-     * o null si todo se vinculó sin problema.
-     */
-    private function sincronizarVehiculos(Zona $zona, array $vehiculosInput): ?string
-    {
+
+    /*
+    |--------------------------------------------------------------------------
+    | PREPARAR VEHÍCULOS
+    |--------------------------------------------------------------------------
+    */
+
+    private function prepararVehiculos(
+        array $vehiculosInput,
+        $empresaId,
+        $userId
+    ): array {
+
         if (empty($vehiculosInput)) {
-            $zona->vehiculos()->sync([]);
-            return null;
+            return [];
         }
 
-        $idsSolicitados = collect($vehiculosInput)->pluck('id')->all();
-        $vehiculosEncontrados = Vehiculo::whereIn('id', $idsSolicitados)->get()->keyBy('id');
+        $ids = collect(
+            $vehiculosInput
+        )
+        ->pluck('id')
+        ->filter()
+        ->unique()
+        ->values()
+        ->all();
+
+
+        $vehiculos =
+            Vehiculo::whereIn(
+                'id',
+                $ids
+            )
+            ->get()
+            ->keyBy('id');
+
 
         $syncData = [];
         $rechazados = [];
 
-        foreach ($vehiculosInput as $v) {
-            $vehiculo = $vehiculosEncontrados->get($v['id']);
 
-            if (!$vehiculo || !$zona->puedeAsignarseA($vehiculo)) {
-                $rechazados[] = $vehiculo->nombre ?? "ID {$v['id']}";
+        foreach (
+            $vehiculosInput
+            as $vehiculoInput
+        ) {
+
+            $vehiculo =
+                $vehiculos->get(
+                    $vehiculoInput['id']
+                );
+
+
+            if (!$vehiculo) {
                 continue;
             }
 
-            $syncData[$v['id']] = [
-                'tipo_regla' => $v['tipo_regla'] ?? 'informativa',
-                'notificar_entrada' => filter_var($v['notificar_entrada'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                'notificar_salida' => filter_var($v['notificar_salida'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                'permanencia_minima_minutos' => $v['permanencia_minima_minutos'] ?? null,
-                'permanencia_maxima_minutos' => $v['permanencia_maxima_minutos'] ?? null,
+
+            /*
+            | Validar propietario
+            */
+
+            $propietarioValido = false;
+
+
+            if ($empresaId !== null) {
+
+                $propietarioValido =
+                    (int) $vehiculo->empresa_id
+                    ===
+                    (int) $empresaId;
+            }
+
+
+            if ($userId !== null) {
+
+                $propietarioValido =
+                    (int) $vehiculo->user_id
+                    ===
+                    (int) $userId;
+            }
+
+
+            if (!$propietarioValido) {
+
+                $rechazados[] =
+                    $vehiculo->nombre;
+
+                continue;
+            }
+
+
+            /*
+            | Permanencias
+            */
+
+            $minimo =
+                $vehiculoInput[
+                    'permanencia_minima_minutos'
+                ] ?? null;
+
+
+            $maximo =
+                $vehiculoInput[
+                    'permanencia_maxima_minutos'
+                ] ?? null;
+
+
+            if (
+                $minimo !== null
+                &&
+                $maximo !== null
+                &&
+                $minimo !== ''
+                &&
+                $maximo !== ''
+                &&
+                (int) $minimo
+                    >
+                (int) $maximo
+            ) {
+
+                throw ValidationException::withMessages([
+                    'vehiculos' =>
+                        "En {$vehiculo->nombre}, la permanencia mínima no puede ser mayor que la máxima.",
+                ]);
+            }
+
+
+            $syncData[
+                $vehiculo->id
+            ] = [
+
+                'tipo_regla' =>
+                    $vehiculoInput[
+                        'tipo_regla'
+                    ] ?? 'informativa',
+
+                'notificar_entrada' =>
+                    filter_var(
+                        $vehiculoInput[
+                            'notificar_entrada'
+                        ] ?? false,
+                        FILTER_VALIDATE_BOOLEAN
+                    ),
+
+                'notificar_salida' =>
+                    filter_var(
+                        $vehiculoInput[
+                            'notificar_salida'
+                        ] ?? false,
+                        FILTER_VALIDATE_BOOLEAN
+                    ),
+
+                'permanencia_minima_minutos' =>
+                    $minimo ?: null,
+
+                'permanencia_maxima_minutos' =>
+                    $maximo ?: null,
             ];
         }
 
-        $zona->vehiculos()->sync($syncData);
 
         if (!empty($rechazados)) {
-            return 'Estos vehículos no se vincularon por pertenecer a otro corporativo: ' . implode(', ', $rechazados) . '.';
+
+            throw ValidationException::withMessages([
+                'vehiculos' =>
+                    'Los siguientes vehículos no pertenecen al propietario de la zona: '
+                    . implode(', ', $rechazados)
+                    . '.',
+            ]);
         }
 
-        return null;
+
+        return $syncData;
     }
 
-    private function verificarPropiedadZona(Zona $zona)
-    {
-        $user = auth()->user();
-        if ($user->hasRole('Super Administrador')) return;
 
-        if ($user->hasRole('Cliente Individual')) {
-            if ($zona->user_id !== $user->id) abort(403, 'Acceso denegado a esta geocerca.');
-        } else {
-            if ($zona->empresa_id !== $user->empresa_id) abort(403, 'La geocerca pertenece a otra empresa.');
+    /*
+    |--------------------------------------------------------------------------
+    | CONVERTIR COORDENADAS A POLYGON
+    |--------------------------------------------------------------------------
+    */
+
+    private function parsearCoordenadasAPoligono(
+        string $jsonCoordenadas
+    ): ?string {
+
+        $coordenadas =
+            json_decode(
+                $jsonCoordenadas,
+                true
+            );
+
+
+        if (
+            !is_array($coordenadas)
+            ||
+            count($coordenadas) < 3
+        ) {
+            return null;
+        }
+
+
+        $puntos = [];
+
+
+        foreach (
+            $coordenadas
+            as $coord
+        ) {
+
+            if (
+                !isset(
+                    $coord['lat'],
+                    $coord['lng']
+                )
+                ||
+                !is_numeric(
+                    $coord['lat']
+                )
+                ||
+                !is_numeric(
+                    $coord['lng']
+                )
+            ) {
+                return null;
+            }
+
+
+            $lat =
+                (float) $coord['lat'];
+
+            $lng =
+                (float) $coord['lng'];
+
+
+            if (
+                $lat < -90
+                ||
+                $lat > 90
+                ||
+                $lng < -180
+                ||
+                $lng > 180
+            ) {
+                return null;
+            }
+
+
+            $lngTexto =
+                number_format(
+                    $lng,
+                    8,
+                    '.',
+                    ''
+                );
+
+            $latTexto =
+                number_format(
+                    $lat,
+                    8,
+                    '.',
+                    ''
+                );
+
+
+            $puntos[] =
+                $lngTexto
+                . ' '
+                . $latTexto;
+        }
+
+
+        /*
+        | Cerrar el polígono
+        */
+
+        if (
+            $puntos[0]
+            !==
+            end($puntos)
+        ) {
+
+            $puntos[] =
+                $puntos[0];
+        }
+
+
+        return
+            'POLYGON(('
+            . implode(
+                ',',
+                $puntos
+            )
+            . '))';
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | SEGURIDAD MULTI-TENANT
+    |--------------------------------------------------------------------------
+    */
+
+    private function verificarPropiedadZona(
+        Zona $zona
+    ): void {
+
+        $user =
+            auth()->user();
+
+
+        if (
+            $user->hasRole(
+                'Super Administrador'
+            )
+        ) {
+            return;
+        }
+
+
+        if (
+            $user->hasRole(
+                'Cliente Individual'
+            )
+        ) {
+
+            if (
+                (int) $zona->user_id
+                !==
+                (int) $user->id
+            ) {
+
+                abort(
+                    403,
+                    'Acceso denegado a esta geocerca.'
+                );
+            }
+
+            return;
+        }
+
+
+        if (
+            (int) $zona->empresa_id
+            !==
+            (int) $user->empresa_id
+        ) {
+
+            abort(
+                403,
+                'La geocerca pertenece a otra empresa.'
+            );
         }
     }
-
-
-    public function estadoGeocercas(Request $request)
-{
-    $user = auth()->user();
-
-    $query = \App\Models\EventoGeocerca::with(['vehiculo', 'zona'])
-        ->whereNull('fecha_salida');
-
-    if ($user->hasRole('Cliente Individual')) {
-        $query->whereHas('vehiculo', fn ($q) => $q->where('user_id', $user->id));
-    } elseif (!$user->hasRole('Super Administrador')) {
-        $query->whereHas('vehiculo', fn ($q) => $q->where('empresa_id', $user->empresa_id));
-    }
-
-    $eventos = $query->get()->map(function ($evento) {
-        $regla = $evento->zona->vehiculos()
-            ->where('vehiculo_id', $evento->vehiculo_id)
-            ->first()?->pivot;
-
-        return [
-            'vehiculo_id' => $evento->vehiculo_id,
-            'vehiculo_nombre' => $evento->vehiculo->nombre,
-            'zona_id' => $evento->zona_id,
-            'zona_nombre' => $evento->zona->nombre,
-            'zona_color' => $evento->zona->color_hex,
-            'fecha_entrada' => $evento->fecha_entrada,
-            'minutos_dentro' => now()->diffInMinutes($evento->fecha_entrada),
-            'permanencia_maxima_minutos' => $regla->permanencia_maxima_minutos ?? null,
-            'tipo_regla' => $regla->tipo_regla ?? null,
-        ];
-    });
-
-    return response()->json($eventos);
-}
 }

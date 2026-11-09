@@ -2,7 +2,7 @@
     <style>
         .font-heading { font-family: 'Josefin Sans', sans-serif; }
         .font-body    { font-family: 'Ubuntu', sans-serif; }
-        .material-symbols-outlined {
+        .material-symbols-rounded {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
             vertical-align: middle;
             line-height: 1;
@@ -34,14 +34,14 @@
                     @click="openCreate = true"
                     class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white text-[#0056b3] text-sm font-medium rounded-xl hover:bg-blue-50 active:scale-[0.98] transition-all shadow-sm shadow-black/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0056b3]"
                 >
-                    <span class="material-symbols-outlined text-[20px]">add_business</span>
+                    <span class="material-symbols-rounded text-[20px]">add_business</span>
                     Nueva empresa
                 </button>
             </div>
 
             @if(session('success'))
                 <div class="mx-5 sm:mx-6 mt-5 px-4 py-3 rounded-xl bg-blue-50 text-[#003d82] text-sm border border-[#0056b3]/30 flex items-center gap-2">
-                    <span class="material-symbols-outlined text-[18px] text-[#0056b3]">check_circle</span>
+                    <span class="material-symbols-rounded text-[18px] text-[#0056b3]">check_circle</span>
                     {{ session('success') }}
                 </div>
             @endif
@@ -87,11 +87,11 @@
 
                                 <td class="px-6 py-4">
                                     <div class="flex items-center gap-1.5 text-gray-700">
-                                        <span class="material-symbols-outlined text-[16px] text-[#0056b3]">call</span>
+                                        <span class="material-symbols-rounded text-[16px] text-[#0056b3]">call</span>
                                         {{ $empresa->telefono ?? 'Sin teléfono' }}
                                     </div>
                                     <div class="flex items-center gap-1.5 text-xs text-gray-500 mt-1">
-                                        <span class="material-symbols-outlined text-[15px] text-[#0056b3]">mail</span>
+                                        <span class="material-symbols-rounded text-[15px] text-[#0056b3]">mail</span>
                                         {{ $empresa->correo ?? 'Sin correo' }}
                                     </div>
                                 </td>
@@ -99,11 +99,11 @@
                                 <td class="px-6 py-4">
                                     <div class="flex flex-col gap-1.5 items-start">
                                         <span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-[#0056b3]/10 text-[#003d82]" title="Usuarios vinculados">
-                                            <span class="material-symbols-outlined text-[15px]">group</span>
+                                            <span class="material-symbols-rounded text-[15px]">group</span>
                                             {{ $empresa->usuarios_count ?? 0 }} usuarios
                                         </span>
                                         <span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-blue-50 text-[#0056b3]" title="Vehículos vinculados">
-                                            <span class="material-symbols-outlined text-[15px]">directions_car</span>
+                                            <span class="material-symbols-rounded text-[15px]">directions_car</span>
                                             {{ $empresa->vehiculos_count ?? 0 }} vehículos
                                         </span>
                                     </div>
@@ -112,12 +112,12 @@
                                 <td class="px-6 py-4">
                                     @if($empresa->is_active)
                                         <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium border border-emerald-200">
-                                            <span class="material-symbols-outlined text-[15px] text-emerald-600">check_circle</span>
+                                            <span class="material-symbols-rounded text-[15px] text-emerald-600">check_circle</span>
                                             Servicio activo
                                         </span>
                                     @else
                                         <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-50 text-red-700 text-xs font-medium border border-red-200">
-                                            <span class="material-symbols-outlined text-[15px] text-red-600">pause_circle</span>
+                                            <span class="material-symbols-rounded text-[15px] text-red-600">pause_circle</span>
                                             Suspendido
                                         </span>
                                     @endif
@@ -128,12 +128,12 @@
                                     <div class="inline-flex items-center gap-1">
                                         <!-- Botón Ver Detalles (Show) -->
                                         <button @click="openShowId = {{ $empresa->id }}" title="Ver detalles de la cuenta" class="p-2 text-gray-500 hover:text-[#0056b3] hover:bg-[#0056b3]/10 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0056b3]">
-                                            <span class="material-symbols-outlined text-[20px]">visibility</span>
+                                            <span class="material-symbols-rounded text-[20px]">visibility</span>
                                         </button>
 
                                         <!-- Botón Editar -->
                                         <button @click="openEditId = {{ $empresa->id }}" title="Editar empresa" class="p-2 text-gray-500 hover:text-[#0056b3] hover:bg-[#0056b3]/10 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0056b3]">
-                                            <span class="material-symbols-outlined text-[20px]">edit</span>
+                                            <span class="material-symbols-rounded text-[20px]">edit</span>
                                         </button>
 
                                         <!-- Eliminar permanentemente -->
@@ -142,7 +142,7 @@
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" title="Eliminar empresa" class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
-                                                <span class="material-symbols-outlined text-[20px]">delete</span>
+                                                <span class="material-symbols-rounded text-[20px]">delete</span>
                                             </button>
                                         </form>
                                     </div>
@@ -152,7 +152,7 @@
                         @empty
                             <tr>
                                 <td colspan="5" class="px-6 py-10 text-center text-gray-500 bg-white">
-                                    <span class="material-symbols-outlined text-[32px] text-[#0056b3]/40 block mb-2">domain_disabled</span>
+                                    <span class="material-symbols-rounded text-[32px] text-[#0056b3]/40 block mb-2">domain_disabled</span>
                                     No hay empresas ni clientes corporativos registrados.
                                 </td>
                             </tr>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\EventoGeocerca;
 use App\Models\Vehiculo;
 use App\Models\Zona;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class EventoGeocercaController extends Controller
@@ -13,48 +14,314 @@ class EventoGeocercaController extends Controller
     {
         $user = auth()->user();
 
-        // CORRECCIÓN 1: Llamamos a la relación 'zona' en lugar de 'geocerca'
-        $query = EventoGeocerca::with(['vehiculo', 'zona'])->latest('fecha_entrada');
+        /*
+        |--------------------------------------------------------------------------
+        | VALIDAR FILTROS
+        |--------------------------------------------------------------------------
+        */
 
-        // Scoping Multi-Tenant
-        if ($user->hasRole('Cliente Individual')) {
-            $query->whereHas('vehiculo', fn($q) => $q->where('user_id', $user->id));
-            $vehiculos = Vehiculo::where('user_id', $user->id)->get();
-            $geocercas = Zona::where('user_id', $user->id)->get();
-        } elseif (!$user->hasRole('Super Administrador')) {
-            $query->whereHas('vehiculo', fn($q) => $q->where('empresa_id', $user->empresa_id));
-            $vehiculos = Vehiculo::where('empresa_id', $user->empresa_id)->get();
-            $geocercas = Zona::where('empresa_id', $user->empresa_id)->get();
-        } else {
-            $vehiculos = Vehiculo::all();
-            $geocercas = Zona::all();
+        $filtros = $request->validate([
+            'fecha_inicio' => [
+                'nullable',
+                'date',
+            ],
+
+            'fecha_fin' => [
+                'nullable',
+                'date',
+                'after_or_equal:fecha_inicio',
+            ],
+
+            'vehiculo_id' => [
+                'nullable',
+                'integer',
+                'exists:vehiculos,id',
+            ],
+
+            'geocerca_id' => [
+                'nullable',
+                'integer',
+                'exists:zonas,id',
+            ],
+
+            'estado' => [
+                'nullable',
+                'in:dentro,finalizado,alerta',
+            ],
+        ]);
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | CONSULTAS BASE
+        |--------------------------------------------------------------------------
+        */
+
+        $query = EventoGeocerca::with([
+            'vehiculo',
+            'zona',
+        ])
+        ->orderByDesc('fecha_entrada');
+
+
+        $vehiculosQuery =
+            Vehiculo::query()
+                ->orderBy('nombre');
+
+
+        $zonasQuery =
+            Zona::query()
+                ->orderBy('nombre');
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | MULTI-TENANT
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            $user->hasRole(
+                'Cliente Individual'
+            )
+        ) {
+
+            $query->whereHas(
+                'vehiculo',
+                function ($q) use ($user) {
+
+                    $q->where(
+                        'user_id',
+                        $user->id
+                    );
+                }
+            );
+
+
+            $vehiculosQuery->where(
+                'user_id',
+                $user->id
+            );
+
+
+            $zonasQuery->where(
+                'user_id',
+                $user->id
+            );
+
+        } elseif (
+            !$user->hasRole(
+                'Super Administrador'
+            )
+        ) {
+
+            $query->whereHas(
+                'vehiculo',
+                function ($q) use ($user) {
+
+                    $q->where(
+                        'empresa_id',
+                        $user->empresa_id
+                    );
+                }
+            );
+
+
+            $vehiculosQuery->where(
+                'empresa_id',
+                $user->empresa_id
+            );
+
+
+            $zonasQuery->where(
+                'empresa_id',
+                $user->empresa_id
+            );
         }
 
-        // Filtros opcionales (Alineados con el formulario de la vista)
-        if ($request->filled('vehiculo_id')) {
-            $query->where('vehiculo_id', $request->vehiculo_id);
+
+        /*
+        |--------------------------------------------------------------------------
+        | FILTRO VEHÍCULO
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            !empty(
+                $filtros['vehiculo_id']
+            )
+        ) {
+
+            $query->where(
+                'vehiculo_id',
+                $filtros['vehiculo_id']
+            );
         }
 
-        if ($request->filled('geocerca_id')) {
-            // CORRECCIÓN 2: Apuntamos a la columna correcta 'zona_id'
-            $query->where('zona_id', $request->geocerca_id); 
+
+        /*
+        |--------------------------------------------------------------------------
+        | FILTRO ZONA
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            !empty(
+                $filtros['geocerca_id']
+            )
+        ) {
+
+            $query->where(
+                'zona_id',
+                $filtros['geocerca_id']
+            );
         }
 
-        if ($request->filled('tipo_evento')) {
-            $query->where('tipo_evento', $request->tipo_evento);
+
+        /*
+        |--------------------------------------------------------------------------
+        | FECHA INICIO
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            !empty(
+                $filtros['fecha_inicio']
+            )
+        ) {
+
+            $fechaInicio =
+                Carbon::parse(
+                    $filtros['fecha_inicio']
+                );
+
+
+            $query->where(
+                'fecha_entrada',
+                '>=',
+                $fechaInicio
+            );
         }
 
-        if ($request->filled('fecha_inicio')) {
-            $query->whereDate('fecha_entrada', '>=', $request->fecha_inicio);
+
+        /*
+        |--------------------------------------------------------------------------
+        | FECHA FIN
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            !empty(
+                $filtros['fecha_fin']
+            )
+        ) {
+
+            $fechaFin =
+                Carbon::parse(
+                    $filtros['fecha_fin']
+                );
+
+
+            $query->where(
+                'fecha_entrada',
+                '<=',
+                $fechaFin
+            );
         }
 
-        if ($request->filled('fecha_fin')) {
-            $query->whereDate('fecha_entrada', '<=', $request->fecha_fin);
+
+        /*
+        |--------------------------------------------------------------------------
+        | ESTADO
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            !empty(
+                $filtros['estado']
+            )
+        ) {
+
+            switch (
+                $filtros['estado']
+            ) {
+
+                /*
+                | Vehículo todavía dentro
+                */
+
+                case 'dentro':
+
+                    $query->whereNull(
+                        'fecha_salida'
+                    );
+
+                    break;
+
+
+                /*
+                | Entrada y salida completadas
+                */
+
+                case 'finalizado':
+
+                    $query->whereNotNull(
+                        'fecha_salida'
+                    );
+
+                    break;
+
+
+                /*
+                | Cualquier tipo de alerta
+                */
+
+                case 'alerta':
+
+                    $query->where(
+                        function ($q) {
+
+                            $q->where(
+                                'alerta_generada',
+                                true
+                            )
+                            ->orWhere(
+                                'alerta_permanencia_generada',
+                                true
+                            );
+                        }
+                    );
+
+                    break;
+            }
         }
 
-        $eventos = $query->paginate(20);
 
-        // Se envía $geocercas (como lo espera el @foreach de la vista)
-        return view('geocercas.historial', compact('eventos', 'vehiculos', 'geocercas'));
+        /*
+        |--------------------------------------------------------------------------
+        | RESULTADOS
+        |--------------------------------------------------------------------------
+        */
+
+        $eventos =
+            $query->paginate(20);
+
+
+        $vehiculos =
+            $vehiculosQuery->get();
+
+
+        $geocercas =
+            $zonasQuery->get();
+
+
+        return view(
+            'geocercas.historial',
+            compact(
+                'eventos',
+                'vehiculos',
+                'geocercas'
+            )
+        );
     }
 }

@@ -1,79 +1,330 @@
-<div x-show="openShow" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center p-4 text-left">
-    <div x-show="openShow" x-transition.opacity @click="openShow = false" class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm"></div>
+<div
+    x-show="openShow"
+    style="display: none;"
+    class="fixed inset-0 z-[200]
+           flex items-center justify-center
+           p-4 text-left"
+>
 
-    <div x-show="openShow"
-         x-transition:enter="transition ease-out duration-300"
-         x-transition:enter-start="opacity-0 translate-y-8 sm:scale-95"
-         x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-         x-transition:leave="transition ease-in duration-200"
-         x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-         x-transition:leave-end="opacity-0 translate-y-8 sm:scale-95"
-         class="relative bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-xl overflow-hidden z-50">
+    {{-- FONDO --}}
+    <div
+        x-show="openShow"
+        x-transition.opacity
+        @click="openShow = false"
+        class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm"
+    ></div>
 
-        <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-            <h2 class="text-lg font-bold text-gray-800">Ficha del Dispositivo</h2>
-            <button type="button" @click="openShow = false" class="text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg p-1.5 transition-colors focus:outline-none">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+
+    {{-- MODAL --}}
+    <div
+        x-show="openShow"
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0 translate-y-8 sm:scale-95"
+        x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+        x-transition:leave-end="opacity-0 translate-y-8 sm:scale-95"
+        class="relative z-[201]
+               w-full max-w-xl
+               overflow-hidden rounded-2xl
+               bg-white shadow-2xl"
+    >
+
+        {{-- CABECERA --}}
+        <div
+            class="flex items-center justify-between
+                   border-b border-gray-200 p-5"
+        >
+
+            <div>
+                <h2
+                    class="font-['Josefin_Sans']
+                           text-xl font-semibold text-gray-800"
+                >
+                    Detalles del equipo GPS
+                </h2>
+
+                <p class="mt-1 text-sm text-gray-500">
+                    Información registrada del dispositivo.
+                </p>
+            </div>
+
+
+            <button
+                type="button"
+                @click="openShow = false"
+                class="rounded-lg p-2 text-gray-500
+                       transition-colors
+                       hover:bg-blue-50 hover:text-[#0056b3]"
+            >
+                <span class="material-symbols-rounded">
+                    close
+                </span>
             </button>
+
         </div>
 
-        <div class="p-6 space-y-6">
-            
-            <div class="flex items-center justify-between p-4 rounded-xl {{ $dispositivo->modo_reposo ? 'bg-orange-50 border border-orange-100' : 'bg-green-50 border border-green-100' }}">
+
+        <div class="space-y-5 p-6">
+
+            {{-- ESTADO ADMINISTRATIVO --}}
+            <div
+                class="flex items-center justify-between
+                       rounded-xl border
+                       {{
+                           $dispositivo->activo
+                               ? 'border-emerald-200 bg-emerald-50'
+                               : 'border-gray-200 bg-gray-50'
+                       }}
+                       p-4"
+            >
+
                 <div>
-                    <span class="block text-xs font-bold uppercase tracking-wider {{ $dispositivo->modo_reposo ? 'text-orange-600' : 'text-green-600' }}">
-                        Estado Actual
+
+                    <span class="block text-xs font-semibold uppercase tracking-wider text-gray-500">
+                        Estado del dispositivo
                     </span>
-                    <span class="text-lg font-bold {{ $dispositivo->modo_reposo ? 'text-orange-800' : 'text-green-800' }}">
-                        {{ $dispositivo->modo_reposo ? 'MODO REPOSO (Sleep)' : 'TRANSMITIENDO' }}
+
+                    <span
+                        class="mt-1 block text-lg font-semibold
+                               {{
+                                   $dispositivo->activo
+                                       ? 'text-emerald-700'
+                                       : 'text-gray-600'
+                               }}"
+                    >
+                        {{ $dispositivo->activo ? 'ACTIVO' : 'INACTIVO' }}
                     </span>
+
                 </div>
-                <div class="p-2 rounded-full {{ $dispositivo->modo_reposo ? 'bg-orange-200 text-orange-600' : 'bg-green-200 text-green-600' }}">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"></path></svg>
-                </div>
+
+
+                <span
+                    class="material-symbols-rounded text-[30px]
+                           {{
+                               $dispositivo->activo
+                                   ? 'text-emerald-600'
+                                   : 'text-gray-400'
+                           }}"
+                >
+                    {{ $dispositivo->activo ? 'check_circle' : 'block' }}
+                </span>
+
             </div>
 
-            <div class="grid grid-cols-2 gap-4">
-                <div class="col-span-2">
-                    <span class="block text-xs text-gray-500">IMEI Numérico</span>
-                    <span class="text-lg font-mono font-bold text-gray-900 tracking-widest">{{ $dispositivo->imei }}</span>
-                </div>
+
+            {{-- MODO --}}
+            <div
+                class="flex items-center gap-3 rounded-xl
+                       border border-[#0056b3]/15
+                       bg-blue-50/50 p-4"
+            >
+
+                <span class="material-symbols-rounded text-[#0056b3]">
+                    {{ $dispositivo->modo_reposo ? 'bedtime' : 'settings' }}
+                </span>
+
                 <div>
-                    <span class="block text-xs text-gray-500">Modelo</span>
-                    <span class="text-sm font-medium text-gray-900">{{ $dispositivo->modelo ?? 'N/D' }}</span>
+
+                    <span class="block text-xs font-medium text-gray-500">
+                        Modo de operación configurado
+                    </span>
+
+                    <span class="text-sm font-semibold text-[#003d82]">
+                        {{
+                            $dispositivo->modo_reposo
+                                ? 'Modo reposo'
+                                : 'Modo normal'
+                        }}
+                    </span>
+
                 </div>
-                <div>
-                    <span class="block text-xs text-gray-500">SIM Card</span>
-                    <span class="text-sm font-medium text-gray-900">{{ $dispositivo->numero_sim ?? 'N/D' }}</span>
-                </div>
+
+            </div>
+
+
+            {{-- INFORMACIÓN --}}
+            <div class="grid grid-cols-2 gap-5">
+
                 <div class="col-span-2">
-                    <span class="block text-xs text-gray-500 mb-1">Dueño de Hardware</span>
+
+                    <span class="block text-xs text-gray-500">
+                        IMEI
+                    </span>
+
+                    <span
+                        class="font-mono text-lg font-semibold
+                               tracking-wider text-[#003d82]"
+                    >
+                        {{ $dispositivo->imei }}
+                    </span>
+
+                </div>
+
+
+                <div>
+
+                    <span class="block text-xs text-gray-500">
+                        Modelo
+                    </span>
+
+                    <span class="text-sm font-medium text-gray-900">
+                        {{ $dispositivo->modelo ?? 'No registrado' }}
+                    </span>
+
+                </div>
+
+
+                <div>
+
+                    <span class="block text-xs text-gray-500">
+                        Número SIM
+                    </span>
+
+                    <span class="text-sm font-medium text-gray-900">
+                        {{ $dispositivo->numero_sim ?? 'No registrado' }}
+                    </span>
+
+                </div>
+
+
+                <div>
+
+                    <span class="block text-xs text-gray-500">
+                        Capacidad de batería
+                    </span>
+
+                    <span class="text-sm font-medium text-gray-900">
+                        @if($dispositivo->capacidad_bateria_mah)
+                            {{ number_format($dispositivo->capacidad_bateria_mah) }} mAh
+                        @else
+                            No registrada
+                        @endif
+                    </span>
+
+                </div>
+
+
+                <div>
+
+                    <span class="block text-xs text-gray-500">
+                        Propietario
+                    </span>
+
                     @if($dispositivo->empresa)
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">Empresa: {{ $dispositivo->empresa->nombre }}</span>
+
+                        <span class="text-sm font-medium text-gray-900">
+                            {{ $dispositivo->empresa->nombre }}
+                        </span>
+
                     @elseif($dispositivo->usuario)
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-green-50 text-green-700 border border-green-100">Particular: {{ $dispositivo->usuario->nombre }}</span>
+
+                        <span class="text-sm font-medium text-gray-900">
+                            {{ $dispositivo->usuario->nombre }}
+                            {{ $dispositivo->usuario->apellido_paterno }}
+                        </span>
+
                     @else
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-gray-100 text-gray-600 border border-gray-200">SOTyTECH</span>
+
+                        <span class="text-sm font-medium text-gray-900">
+                            Stock SOTyTECH
+                        </span>
+
                     @endif
+
                 </div>
+
             </div>
 
-            <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                <span class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Vehículo Enlazado</span>
+
+            {{-- VEHÍCULO --}}
+            <div
+                class="rounded-xl border border-gray-200
+                       bg-gray-50 p-4"
+            >
+
+                <span
+                    class="mb-2 block text-xs font-semibold
+                           uppercase tracking-wider text-gray-500"
+                >
+                    Vehículo vinculado
+                </span>
+
+
                 @if($dispositivo->vehiculo)
-                    <div class="text-sm font-bold text-blue-700">{{ $dispositivo->vehiculo->nombre }}</div>
-                    <div class="text-xs text-gray-500 mt-0.5">{{ $dispositivo->vehiculo->marca }} {{ $dispositivo->vehiculo->modelo }} (Placas: {{ $dispositivo->vehiculo->placas ?? 'S/P' }})</div>
+
+                    <div class="flex items-center gap-3">
+
+                        <div
+                            class="flex h-10 w-10
+                                   items-center justify-center
+                                   rounded-lg bg-[#0056b3]/10
+                                   text-[#0056b3]"
+                        >
+                            <span class="material-symbols-rounded">
+                                directions_car
+                            </span>
+                        </div>
+
+                        <div>
+
+                            <div class="text-sm font-semibold text-[#003d82]">
+                                {{ $dispositivo->vehiculo->nombre }}
+                            </div>
+
+                            <div class="mt-0.5 text-xs text-gray-500">
+                                {{ $dispositivo->vehiculo->marca }}
+                                {{ $dispositivo->vehiculo->modelo }}
+
+                                @if($dispositivo->vehiculo->placas)
+                                    · Placas:
+                                    {{ $dispositivo->vehiculo->placas }}
+                                @endif
+                            </div>
+
+                        </div>
+
+                    </div>
+
                 @else
-                    <div class="text-sm text-gray-500 italic">El equipo se encuentra en inventario (Sin instalación).</div>
+
+                    <div class="flex items-center gap-2 text-sm text-gray-500">
+
+                        <span class="material-symbols-rounded text-[18px]">
+                            inventory_2
+                        </span>
+
+                        El dispositivo no tiene un vehículo asignado.
+
+                    </div>
+
                 @endif
+
             </div>
 
         </div>
 
-        <div class="flex justify-end p-4 border-t border-gray-100 bg-gray-50/50">
-            <button type="button" @click="openShow = false" class="px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+
+        {{-- PIE --}}
+        <div
+            class="flex justify-end
+                   border-t border-gray-200
+                   bg-gray-50/50 p-4"
+        >
+
+            <button
+                type="button"
+                @click="openShow = false"
+                class="rounded-xl border border-gray-300
+                       bg-white px-5 py-2.5
+                       text-sm font-medium text-gray-700
+                       transition-colors hover:bg-gray-50"
+            >
                 Cerrar
             </button>
+
         </div>
+
     </div>
+
 </div>

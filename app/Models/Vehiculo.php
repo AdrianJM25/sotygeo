@@ -184,4 +184,9 @@ class Vehiculo extends Model
     {
         return $this->hasMany(EventoGeocerca::class, 'vehiculo_id')->whereNull('fecha_salida');
     }
+    // Relación: un vehículo puede tener conductores asociados
+    public function conductores()
+    {
+        return $this->hasMany(Conductor::class);
+    }
 }

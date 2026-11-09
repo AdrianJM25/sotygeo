@@ -21,19 +21,18 @@ class Dispositivo extends Model
         'numero_sim',
         'modelo',
         'capacidad_bateria_mah',
-        'modo_reposo'
+        'modo_reposo',
+        'activo',
     ];
 
     protected function casts(): array
     {
         return [
             'modo_reposo' => 'boolean',
+            'activo' => 'boolean',
         ];
     }
 
-    // ==========================================
-    // RELACIONES MULTI-TENANT (SaaS)
-    // ==========================================
     public function empresa(): BelongsTo
     {
         return $this->belongsTo(Empresa::class);
@@ -41,12 +40,12 @@ class Dispositivo extends Model
 
     public function usuario(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return $this->belongsTo(
+            User::class,
+            'user_id'
+        );
     }
 
-    // ==========================================
-    // RELACIONES LOGÍSTICAS
-    // ==========================================
     public function vehiculo(): BelongsTo
     {
         return $this->belongsTo(Vehiculo::class);

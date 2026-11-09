@@ -2,9 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Alerta extends Model
 {
@@ -20,20 +19,35 @@ class Alerta extends Model
         'leida',
     ];
 
-    protected function casts(): array
+    protected $casts = [
+        'leida' => 'boolean',
+    ];
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | VEHÍCULO
+    |--------------------------------------------------------------------------
+    */
+
+    public function vehiculo()
     {
-        return [
-            'leida' => 'boolean',
-        ];
+        return $this->belongsTo(
+            Vehiculo::class
+        );
     }
 
-    public function vehiculo(): BelongsTo
-    {
-        return $this->belongsTo(Vehiculo::class);
-    }
 
-    public function dispositivo(): BelongsTo
+    /*
+    |--------------------------------------------------------------------------
+    | DISPOSITIVO GPS
+    |--------------------------------------------------------------------------
+    */
+
+    public function dispositivo()
     {
-        return $this->belongsTo(Dispositivo::class);
+        return $this->belongsTo(
+            Dispositivo::class
+        );
     }
 }

@@ -1,104 +1,498 @@
-<div x-show="openCreate" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div x-show="openCreate" x-transition.opacity @click="openCreate = false" class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm"></div>
+<div
+    x-show="openCreate"
+    style="display: none;"
+    class="fixed inset-0 z-[200] flex items-center justify-center p-4"
+>
 
-    <div x-show="openCreate"
-         x-transition:enter="transition ease-out duration-300"
-         x-transition:enter-start="opacity-0 translate-y-8 sm:scale-95"
-         x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-         x-transition:leave="transition ease-in duration-200"
-         x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-         x-transition:leave-end="opacity-0 translate-y-8 sm:scale-95"
-         class="relative bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-2xl overflow-hidden z-50">
+    {{-- FONDO --}}
+    <div
+        x-show="openCreate"
+        x-transition.opacity
+        @click="openCreate = false"
+        class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm"
+    ></div>
 
-        <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-            <h2 class="text-lg font-bold text-gray-800">Registrar Nuevo GPS</h2>
-            <button type="button" @click="openCreate = false" class="text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg p-1.5 transition-colors focus:outline-none">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+
+    {{-- MODAL --}}
+    <div
+        x-show="openCreate"
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0 translate-y-8 sm:scale-95"
+        x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+        x-transition:leave-end="opacity-0 translate-y-8 sm:scale-95"
+        class="relative z-[201]
+               max-h-[90vh] w-full max-w-3xl
+               overflow-y-auto rounded-2xl bg-white
+               shadow-2xl"
+    >
+
+        {{-- CABECERA --}}
+        <div
+            class="flex items-center justify-between
+                   border-b border-gray-200 p-5"
+        >
+
+            <div>
+                <h2
+                    class="font-['Josefin_Sans']
+                           text-xl font-semibold text-gray-800"
+                >
+                    Registrar equipo GPS
+                </h2>
+
+                <p class="mt-1 text-sm text-gray-500">
+                    Registra un nuevo dispositivo y, si lo deseas, asígnalo a un vehículo.
+                </p>
+            </div>
+
+            <button
+                type="button"
+                @click="openCreate = false"
+                class="rounded-lg p-2 text-gray-500
+                       transition-colors
+                       hover:bg-blue-50 hover:text-[#0056b3]"
+            >
+                <span class="material-symbols-rounded">
+                    close
+                </span>
             </button>
+
         </div>
 
-        <form action="{{ route('dispositivos.store') }}" method="POST" class="p-6 space-y-6">
+
+        <form
+            action="{{ route('dispositivos.store') }}"
+            method="POST"
+            class="p-6"
+        >
+
             @csrf
 
-            <!-- SECCIÓN MULTI-TENANT (Exclusivo SOTyTECH) -->
+
+            {{-- ========================================== --}}
+            {{-- PROPIETARIO - SOLO SUPER ADMIN --}}
+            {{-- ========================================== --}}
+
             @role('Super Administrador')
-                <div x-data="{ tipo_dueno: 'empresa' }" class="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
-                    <label class="block mb-3 text-sm font-medium text-gray-900">Propietario del Equipo Físico</label>
-                    <div class="flex gap-4 mb-4">
-                        <label class="flex items-center text-sm cursor-pointer">
-                            <input type="radio" x-model="tipo_dueno" value="empresa" class="text-indigo-600">
-                            <span class="ml-2 text-gray-700">Corporativo</span>
+
+                <div
+                    x-data="{
+                        tipoDueno:
+                            @js(
+                                old('user_id')
+                                    ? 'particular'
+                                    : (
+                                        old('empresa_id')
+                                            ? 'empresa'
+                                            : 'stock'
+                                    )
+                            )
+                    }"
+                    class="mb-6 rounded-xl
+                           border border-[#0056b3]/15
+                           bg-blue-50/50 p-4"
+                >
+
+                    <label class="block text-sm font-semibold text-gray-800">
+                        Propietario del equipo
+                    </label>
+
+                    <p class="mt-1 text-xs text-gray-500">
+                        Indica a quién pertenece físicamente el dispositivo.
+                    </p>
+
+
+                    <div class="mt-4 flex flex-wrap gap-4">
+
+                        <label class="flex cursor-pointer items-center gap-2 text-sm">
+                            <input
+                                type="radio"
+                                x-model="tipoDueno"
+                                value="stock"
+                                class="text-[#0056b3] focus:ring-[#0056b3]"
+                            >
+
+                            Stock SOTyTECH
                         </label>
-                       
+
+
+                        <label class="flex cursor-pointer items-center gap-2 text-sm">
+                            <input
+                                type="radio"
+                                x-model="tipoDueno"
+                                value="empresa"
+                                class="text-[#0056b3] focus:ring-[#0056b3]"
+                            >
+
+                            Empresa
+                        </label>
+
+
+                        <label class="flex cursor-pointer items-center gap-2 text-sm">
+                            <input
+                                type="radio"
+                                x-model="tipoDueno"
+                                value="particular"
+                                class="text-[#0056b3] focus:ring-[#0056b3]"
+                            >
+
+                            Cliente Individual
+                        </label>
+
                     </div>
-                    <div x-show="tipo_dueno === 'empresa'">
-                        <select name="empresa_id" class="bg-white border text-gray-900 text-sm rounded-lg block w-full p-2.5">
-                            <option value="">-- Interno SOTyTECH --</option>
+
+
+                    {{-- EMPRESA --}}
+                    <div
+                        x-show="tipoDueno === 'empresa'"
+                        class="mt-4"
+                    >
+
+                        <label class="mb-1 block text-sm font-medium text-gray-700">
+                            Empresa
+                        </label>
+
+                        <select
+                            name="empresa_id"
+                            :disabled="tipoDueno !== 'empresa'"
+                            class="w-full rounded-xl border-gray-300
+                                   bg-white focus:border-[#0056b3]
+                                   focus:ring-[#0056b3]"
+                        >
+                            <option value="">
+                                Selecciona una empresa
+                            </option>
+
                             @foreach($empresas as $emp)
-                                <option value="{{ $emp->id }}" {{ old('empresa_id') == $emp->id ? 'selected' : '' }}>{{ $emp->nombre }}</option>
+
+                                <option
+                                    value="{{ $emp->id }}"
+                                    @selected(old('empresa_id') == $emp->id)
+                                >
+                                    {{ $emp->nombre }}
+                                </option>
+
                             @endforeach
                         </select>
+
                     </div>
-                    <div x-show="tipo_dueno === 'particular'" style="display: none;">
-                        <select name="user_id" class="bg-white border text-gray-900 text-sm rounded-lg block w-full p-2.5">
-                            <option value="">-- Seleccionar Cliente --</option>
+
+
+                    {{-- CLIENTE --}}
+                    <div
+                        x-show="tipoDueno === 'particular'"
+                        class="mt-4"
+                    >
+
+                        <label class="mb-1 block text-sm font-medium text-gray-700">
+                            Cliente Individual
+                        </label>
+
+                        <select
+                            name="user_id"
+                            :disabled="tipoDueno !== 'particular'"
+                            class="w-full rounded-xl border-gray-300
+                                   bg-white focus:border-[#0056b3]
+                                   focus:ring-[#0056b3]"
+                        >
+                            <option value="">
+                                Selecciona un cliente
+                            </option>
+
                             @foreach($clientes as $cliente)
-                                <option value="{{ $cliente->id }}" {{ old('user_id') == $cliente->id ? 'selected' : '' }}>{{ $cliente->nombre }} {{ $cliente->apellido_paterno }}</option>
+
+                                <option
+                                    value="{{ $cliente->id }}"
+                                    @selected(old('user_id') == $cliente->id)
+                                >
+                                    {{ $cliente->nombre }}
+                                    {{ $cliente->apellido_paterno }}
+                                </option>
+
                             @endforeach
                         </select>
+
                     </div>
+
                 </div>
+
             @endrole
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            {{-- ========================================== --}}
+            {{-- DATOS GPS --}}
+            {{-- ========================================== --}}
+
+            <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
+
+                {{-- IMEI --}}
                 <div>
-                    <label class="block mb-2 text-sm font-medium text-gray-900">IMEI (Requerido) <span class="text-red-500">*</span></label>
-                    <input type="text" name="imei" value="{{ old('imei') }}" required class="bg-gray-50 border {{ $errors->has('imei') && !old('is_edit') ? 'border-red-500' : 'border-gray-300' }} text-gray-900 text-sm rounded-lg block w-full p-2.5" placeholder="Ej. 865123045678912">
-                    @if($errors->has('imei') && !old('is_edit')) <span class="text-xs text-red-600 mt-1 block">{{ $errors->first('imei') }}</span> @endif
+
+                    <label class="mb-1 block text-sm font-medium text-gray-700">
+                        IMEI *
+                    </label>
+
+                    <input
+                        type="text"
+                        name="imei"
+                        value="{{ old('imei') }}"
+                        required
+                        maxlength="20"
+                        placeholder="Ej. 865123045678912"
+                        class="w-full rounded-xl
+                               {{ $errors->has('imei') && !old('is_edit')
+                                   ? 'border-red-500'
+                                   : 'border-gray-300'
+                               }}
+                               focus:border-[#0056b3]
+                               focus:ring-[#0056b3]"
+                    >
+
+                    @if($errors->has('imei') && !old('is_edit'))
+                        <p class="mt-1 text-xs text-red-600">
+                            {{ $errors->first('imei') }}
+                        </p>
+                    @endif
+
                 </div>
 
+
+                {{-- MODELO --}}
                 <div>
-                    <label class="block mb-2 text-sm font-medium text-gray-900">Modelo del Hardware</label>
-                    <input type="text" name="modelo" value="{{ old('modelo') }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg block w-full p-2.5" placeholder="Ej. Skstar, Coban, Sinotrack">
+
+                    <label class="mb-1 block text-sm font-medium text-gray-700">
+                        Modelo del dispositivo
+                    </label>
+
+                    <input
+                        type="text"
+                        name="modelo"
+                        value="{{ old('modelo') }}"
+                        maxlength="255"
+                        placeholder="Ej. Sinotrack ST-901"
+                        class="w-full rounded-xl border-gray-300
+                               focus:border-[#0056b3]
+                               focus:ring-[#0056b3]"
+                    >
+
                 </div>
 
+
+                {{-- SIM --}}
                 <div>
-                    <label class="block mb-2 text-sm font-medium text-gray-900">Número SIM (Teléfono del chip)</label>
-                    <input type="text" name="numero_sim" value="{{ old('numero_sim') }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg block w-full p-2.5">
+
+                    <label class="mb-1 block text-sm font-medium text-gray-700">
+                        Número SIM
+                    </label>
+
+                    <input
+                        type="text"
+                        name="numero_sim"
+                        value="{{ old('numero_sim') }}"
+                        maxlength="20"
+                        placeholder="Ej. 7771234567"
+                        class="w-full rounded-xl border-gray-300
+                               focus:border-[#0056b3]
+                               focus:ring-[#0056b3]"
+                    >
+
+                    <p class="mt-1 text-xs text-gray-400">
+                        Número telefónico asociado a la tarjeta SIM.
+                    </p>
+
                 </div>
 
+
+                {{-- BATERÍA --}}
                 <div>
-                    <label class="block mb-2 text-sm font-medium text-gray-900">Capacidad de Batería (mAh)</label>
-                    <input type="number" name="capacidad_bateria_mah" value="{{ old('capacidad_bateria_mah') }}" placeholder="Ej. 5000" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg block w-full p-2.5">
+
+                    <label class="mb-1 block text-sm font-medium text-gray-700">
+                        Capacidad de batería
+                    </label>
+
+                    <div class="relative">
+
+                        <input
+                            type="number"
+                            name="capacidad_bateria_mah"
+                            value="{{ old('capacidad_bateria_mah') }}"
+                            min="0"
+                            placeholder="Ej. 5000"
+                            class="w-full rounded-xl border-gray-300
+                                   pr-16 focus:border-[#0056b3]
+                                   focus:ring-[#0056b3]"
+                        >
+
+                        <span
+                            class="pointer-events-none absolute
+                                   right-4 top-1/2
+                                   -translate-y-1/2
+                                   text-sm text-gray-400"
+                        >
+                            mAh
+                        </span>
+
+                    </div>
+
                 </div>
 
+
+                {{-- VEHÍCULO --}}
                 <div class="md:col-span-2">
-                    <label class="block mb-2 text-sm font-medium text-gray-900">Vincular a Vehículo (Opcional)</label>
-                    <select name="vehiculo_id" class="bg-gray-50 border {{ $errors->has('vehiculo_id') && !old('is_edit') ? 'border-red-500' : 'border-gray-300' }} text-gray-900 text-sm rounded-lg block w-full p-2.5">
-                        <option value="">-- Mantener en stock / Sin asignar --</option>
-                        @foreach($vehiculos as $vehiculo)
-                            <option value="{{ $vehiculo->id }}" {{ old('vehiculo_id') == $vehiculo->id ? 'selected' : '' }}>
-                                {{ $vehiculo->nombre }} ({{ $vehiculo->placas ?? 'S/P' }})
+
+                    <label class="mb-1 block text-sm font-medium text-gray-700">
+                        Vehículo asignado
+                    </label>
+
+                    <select
+                        name="vehiculo_id"
+                        class="w-full rounded-xl
+                               {{ $errors->has('vehiculo_id') && !old('is_edit')
+                                   ? 'border-red-500'
+                                   : 'border-gray-300'
+                               }}
+                               focus:border-[#0056b3]
+                               focus:ring-[#0056b3]"
+                    >
+
+                        <option value="">
+                            Sin vehículo / Mantener en stock
+                        </option>
+
+                        @foreach($vehiculosDisponibles as $vehiculo)
+
+                            <option
+                                value="{{ $vehiculo->id }}"
+                                @selected(old('vehiculo_id') == $vehiculo->id)
+                            >
+                                {{ $vehiculo->nombre }}
+                                @if($vehiculo->placas)
+                                    — {{ $vehiculo->placas }}
+                                @endif
                             </option>
+
                         @endforeach
+
                     </select>
-                    @if($errors->has('vehiculo_id') && !old('is_edit')) <span class="text-xs text-red-600 mt-1 block">{{ $errors->first('vehiculo_id') }}</span> @endif
+
+                    @if($errors->has('vehiculo_id') && !old('is_edit'))
+
+                        <p class="mt-1 text-xs text-red-600">
+                            {{ $errors->first('vehiculo_id') }}
+                        </p>
+
+                    @endif
+
                 </div>
+
             </div>
 
-            <div class="flex items-center pt-2">
-                <input type="checkbox" name="modo_reposo" id="modo_reposo_create" value="1" {{ old('modo_reposo') ? 'checked' : '' }} class="w-4 h-4 text-gray-900 bg-gray-100 border-gray-300 rounded focus:ring-gray-900">
-                <label for="modo_reposo_create" class="ml-2 text-sm font-medium text-gray-900">El dispositivo está en modo reposo (Ahorro de batería)</label>
+
+            {{-- ========================================== --}}
+            {{-- CONFIGURACIÓN --}}
+            {{-- ========================================== --}}
+
+            <div
+                class="mt-6 grid grid-cols-1 gap-4
+                       rounded-xl border border-gray-200
+                       bg-gray-50 p-4 md:grid-cols-2"
+            >
+
+                {{-- ACTIVO --}}
+                <label class="flex cursor-pointer items-start gap-3">
+
+                    <input type="hidden" name="activo" value="0">
+
+                    <input
+                        type="checkbox"
+                        name="activo"
+                        value="1"
+                        @checked(old('activo', 1))
+                        class="mt-0.5 rounded
+                               border-gray-300 text-[#0056b3]
+                               focus:ring-[#0056b3]"
+                    >
+
+                    <span>
+                        <span class="block text-sm font-medium text-gray-800">
+                            Dispositivo activo
+                        </span>
+
+                        <span class="block text-xs text-gray-500">
+                            Permite utilizar este GPS dentro del sistema.
+                        </span>
+                    </span>
+
+                </label>
+
+
+                {{-- REPOSO --}}
+                <label class="flex cursor-pointer items-start gap-3">
+
+                    <input
+                        type="checkbox"
+                        name="modo_reposo"
+                        value="1"
+                        @checked(old('modo_reposo'))
+                        class="mt-0.5 rounded
+                               border-gray-300 text-[#0056b3]
+                               focus:ring-[#0056b3]"
+                    >
+
+                    <span>
+                        <span class="block text-sm font-medium text-gray-800">
+                            Modo reposo
+                        </span>
+
+                        <span class="block text-xs text-gray-500">
+                            Indica que el equipo utiliza ahorro de batería.
+                        </span>
+                    </span>
+
+                </label>
+
             </div>
 
-            <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                <button type="button" @click="openCreate = false" class="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+
+            {{-- BOTONES --}}
+            <div
+                class="mt-6 flex justify-end gap-3
+                       border-t border-gray-200 pt-5"
+            >
+
+                <button
+                    type="button"
+                    @click="openCreate = false"
+                    class="rounded-xl border border-gray-300
+                           px-4 py-2.5 text-sm font-medium
+                           text-gray-700 transition-colors
+                           hover:bg-gray-50"
+                >
                     Cancelar
                 </button>
-                <button type="submit" class="px-5 py-2.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors shadow-sm">
-                    Guardar GPS
+
+
+                <button
+                    type="submit"
+                    class="inline-flex items-center gap-2
+                           rounded-xl bg-[#0056b3]
+                           px-4 py-2.5 text-sm font-medium
+                           text-white shadow-sm
+                           transition-colors hover:bg-[#004494]"
+                >
+                    <span class="material-symbols-rounded text-[18px]">
+                        save
+                    </span>
+
+                    Registrar GPS
                 </button>
+
             </div>
+
         </form>
+
     </div>
+
 </div>

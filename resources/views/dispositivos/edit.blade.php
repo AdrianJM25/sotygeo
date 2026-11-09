@@ -1,113 +1,615 @@
-<div x-show="openEdit" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center p-4 text-left">
-    <div x-show="openEdit" x-transition.opacity @click="openEdit = false" class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm"></div>
+@php
+    if ($dispositivo->empresa_id) {
+        $propietarioActual = 'empresa:' . $dispositivo->empresa_id;
+    } elseif ($dispositivo->user_id) {
+        $propietarioActual = 'cliente:' . $dispositivo->user_id;
+    } else {
+        $propietarioActual = 'stock';
+    }
 
-    <div x-show="openEdit"
-         x-transition:enter="transition ease-out duration-300"
-         x-transition:enter-start="opacity-0 translate-y-8 sm:scale-95"
-         x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-         x-transition:leave="transition ease-in duration-200"
-         x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-         x-transition:leave-end="opacity-0 translate-y-8 sm:scale-95"
-         class="relative bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-2xl overflow-hidden z-50">
+    if (old('is_edit') == $dispositivo->id) {
+        $propietarioActual = old(
+            'propietario',
+            $propietarioActual
+        );
+    }
+@endphp
 
-        <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-            <h2 class="text-lg font-bold text-gray-800">Editar Configuración GPS</h2>
-            <button type="button" @click="openEdit = false" class="text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg p-1.5 transition-colors focus:outline-none">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+
+<div
+    x-show="openEdit"
+    style="display: none;"
+    class="fixed inset-0 z-[200]
+           flex items-center justify-center
+           p-4 text-left"
+>
+
+    {{-- FONDO --}}
+    <div
+        x-show="openEdit"
+        x-transition.opacity
+        @click="openEdit = false"
+        class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm"
+    ></div>
+
+
+    {{-- MODAL --}}
+    <div
+        x-show="openEdit"
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0 translate-y-8 sm:scale-95"
+        x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+        x-transition:leave-end="opacity-0 translate-y-8 sm:scale-95"
+        class="relative z-[201]
+               max-h-[90vh] w-full max-w-3xl
+               overflow-y-auto rounded-2xl
+               bg-white shadow-2xl"
+    >
+
+        {{-- CABECERA --}}
+        <div
+            class="flex items-center justify-between
+                   border-b border-gray-200 p-5"
+        >
+
+            <div>
+
+                <h2
+                    class="font-['Josefin_Sans']
+                           text-xl font-semibold text-gray-800"
+                >
+                    Editar equipo GPS
+                </h2>
+
+                <p class="mt-1 text-sm text-gray-500">
+                    Modifica la información y configuración del dispositivo.
+                </p>
+
+            </div>
+
+
+            <button
+                type="button"
+                @click="openEdit = false"
+                class="rounded-lg p-2 text-gray-500
+                       transition-colors
+                       hover:bg-blue-50 hover:text-[#0056b3]"
+            >
+                <span class="material-symbols-rounded">
+                    close
+                </span>
             </button>
+
         </div>
 
-        <form action="{{ route('dispositivos.update', $dispositivo) }}" method="POST" class="p-6 space-y-6">
+
+        {{-- FORMULARIO --}}
+        <form
+            action="{{ route('dispositivos.update', $dispositivo) }}"
+            method="POST"
+            class="p-6"
+        >
+
             @csrf
             @method('PUT')
-            <input type="hidden" name="is_edit" value="{{ $dispositivo->id }}">
+
+
+            <input
+                type="hidden"
+                name="is_edit"
+                value="{{ $dispositivo->id }}"
+            >
+
+
+            {{-- ================================================= --}}
+            {{-- PROPIETARIO --}}
+            {{-- ================================================= --}}
 
             @role('Super Administrador')
-                <div x-data="{ tipo_dueno: '{{ $dispositivo->empresa_id ? 'empresa' : 'particular' }}' }" class="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
-                    <label class="block mb-3 text-sm font-medium text-gray-900">Propietario del Equipo</label>
-                    <div class="flex gap-4 mb-4">
-                        <label class="flex items-center text-sm cursor-pointer">
-                            <input type="radio" x-model="tipo_dueno" value="empresa" class="text-indigo-600">
-                            <span class="ml-2 text-gray-700">Corporativo</span>
-                        </label>
-                        <label class="flex items-center text-sm cursor-pointer">
-                            <input type="radio" x-model="tipo_dueno" value="particular" class="text-indigo-600">
-                            <span class="ml-2 text-gray-700">Cliente Particular</span>
-                        </label>
-                    </div>
-                    <div x-show="tipo_dueno === 'empresa'">
-                        <select name="empresa_id" class="bg-white border text-gray-900 text-sm rounded-lg block w-full p-2.5">
-                            <option value="">-- Interno SOTyTECH --</option>
+
+                <div
+                    class="mb-6 rounded-xl
+                           border border-[#0056b3]/15
+                           bg-blue-50/50 p-4"
+                >
+
+                    <label
+                        class="block text-sm
+                               font-semibold text-gray-800"
+                    >
+                        Propietario del equipo
+                    </label>
+
+                    <p class="mt-1 text-xs text-gray-500">
+                        Selecciona a quién pertenece físicamente el dispositivo GPS.
+                    </p>
+
+
+                    <select
+                        name="propietario"
+                        class="mt-4 w-full rounded-xl
+                               border-gray-300 bg-white
+                               focus:border-[#0056b3]
+                               focus:ring-[#0056b3]"
+                    >
+
+                        {{-- STOCK --}}
+                        <option
+                            value="stock"
+                            @selected(
+                                $propietarioActual === 'stock'
+                            )
+                        >
+                            Stock SOTyTECH
+                        </option>
+
+
+                        {{-- EMPRESAS --}}
+                        <optgroup label="Empresas">
+
                             @foreach($empresas as $emp)
-                                <option value="{{ $emp->id }}" {{ old('empresa_id', $dispositivo->empresa_id) == $emp->id ? 'selected' : '' }}>{{ $emp->nombre }}</option>
+
+                                <option
+                                    value="empresa:{{ $emp->id }}"
+                                    @selected(
+                                        $propietarioActual ===
+                                        'empresa:' . $emp->id
+                                    )
+                                >
+                                    {{ $emp->nombre }}
+                                </option>
+
                             @endforeach
-                        </select>
-                    </div>
-                    <div x-show="tipo_dueno === 'particular'" style="display: none;">
-                        <select name="user_id" class="bg-white border text-gray-900 text-sm rounded-lg block w-full p-2.5">
-                            <option value="">-- Seleccionar Cliente --</option>
+
+                        </optgroup>
+
+
+                        {{-- CLIENTES --}}
+                        <optgroup label="Clientes Individuales">
+
                             @foreach($clientes as $cliente)
-                                <option value="{{ $cliente->id }}" {{ old('user_id', $dispositivo->user_id) == $cliente->id ? 'selected' : '' }}>{{ $cliente->nombre }} {{ $cliente->apellido_paterno }}</option>
+
+                                <option
+                                    value="cliente:{{ $cliente->id }}"
+                                    @selected(
+                                        $propietarioActual ===
+                                        'cliente:' . $cliente->id
+                                    )
+                                >
+                                    {{ $cliente->nombre }}
+                                    {{ $cliente->apellido_paterno }}
+                                </option>
+
                             @endforeach
-                        </select>
-                    </div>
+
+                        </optgroup>
+
+                    </select>
+
+
+                    @if(
+                        $errors->has('propietario')
+                        &&
+                        old('is_edit') == $dispositivo->id
+                    )
+
+                        <p class="mt-1 text-xs text-red-600">
+                            {{ $errors->first('propietario') }}
+                        </p>
+
+                    @endif
+
                 </div>
+
             @endrole
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            {{-- ================================================= --}}
+            {{-- DATOS DEL GPS --}}
+            {{-- ================================================= --}}
+
+            <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
+
+                {{-- IMEI --}}
                 <div>
-                    <label class="block mb-2 text-sm font-medium text-gray-900">IMEI (Requerido) <span class="text-red-500">*</span></label>
-                    <input type="text" name="imei" value="{{ old('imei', $dispositivo->imei) }}" required class="bg-gray-50 border {{ $errors->has('imei') && old('is_edit') == $dispositivo->id ? 'border-red-500' : 'border-gray-300' }} text-gray-900 text-sm rounded-lg block w-full p-2.5">
-                    @if($errors->has('imei') && old('is_edit') == $dispositivo->id) <span class="text-xs text-red-600 mt-1 block">{{ $errors->first('imei') }}</span> @endif
+
+                    <label
+                        class="mb-1 block
+                               text-sm font-medium text-gray-700"
+                    >
+                        IMEI *
+                    </label>
+
+
+                    <input
+                        type="text"
+                        name="imei"
+                        maxlength="20"
+                        required
+                        value="{{
+                            old('is_edit') == $dispositivo->id
+                                ? old('imei')
+                                : $dispositivo->imei
+                        }}"
+                        class="w-full rounded-xl
+                               {{
+                                   $errors->has('imei')
+                                   &&
+                                   old('is_edit') == $dispositivo->id
+                                       ? 'border-red-500'
+                                       : 'border-gray-300'
+                               }}
+                               focus:border-[#0056b3]
+                               focus:ring-[#0056b3]"
+                    >
+
+
+                    @if(
+                        $errors->has('imei')
+                        &&
+                        old('is_edit') == $dispositivo->id
+                    )
+
+                        <p class="mt-1 text-xs text-red-600">
+                            {{ $errors->first('imei') }}
+                        </p>
+
+                    @endif
+
                 </div>
 
+
+                {{-- MODELO --}}
                 <div>
-                    <label class="block mb-2 text-sm font-medium text-gray-900">Modelo del Hardware</label>
-                    <input type="text" name="modelo" value="{{ old('modelo', $dispositivo->modelo) }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg block w-full p-2.5">
+
+                    <label
+                        class="mb-1 block
+                               text-sm font-medium text-gray-700"
+                    >
+                        Modelo del dispositivo
+                    </label>
+
+
+                    <input
+                        type="text"
+                        name="modelo"
+                        maxlength="255"
+                        value="{{
+                            old('is_edit') == $dispositivo->id
+                                ? old('modelo')
+                                : $dispositivo->modelo
+                        }}"
+                        class="w-full rounded-xl
+                               border-gray-300
+                               focus:border-[#0056b3]
+                               focus:ring-[#0056b3]"
+                    >
+
                 </div>
 
+
+                {{-- SIM --}}
                 <div>
-                    <label class="block mb-2 text-sm font-medium text-gray-900">Número SIM</label>
-                    <input type="text" name="numero_sim" value="{{ old('numero_sim', $dispositivo->numero_sim) }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg block w-full p-2.5">
+
+                    <label
+                        class="mb-1 block
+                               text-sm font-medium text-gray-700"
+                    >
+                        Número SIM
+                    </label>
+
+
+                    <input
+                        type="text"
+                        name="numero_sim"
+                        maxlength="20"
+                        value="{{
+                            old('is_edit') == $dispositivo->id
+                                ? old('numero_sim')
+                                : $dispositivo->numero_sim
+                        }}"
+                        class="w-full rounded-xl
+                               border-gray-300
+                               focus:border-[#0056b3]
+                               focus:ring-[#0056b3]"
+                    >
+
                 </div>
 
+
+                {{-- BATERÍA --}}
                 <div>
-                    <label class="block mb-2 text-sm font-medium text-gray-900">Capacidad Batería (mAh)</label>
-                    <input type="number" name="capacidad_bateria_mah" value="{{ old('capacidad_bateria_mah', $dispositivo->capacidad_bateria_mah) }}" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg block w-full p-2.5">
+
+                    <label
+                        class="mb-1 block
+                               text-sm font-medium text-gray-700"
+                    >
+                        Capacidad de batería
+                    </label>
+
+
+                    <div class="relative">
+
+                        <input
+                            type="number"
+                            name="capacidad_bateria_mah"
+                            min="0"
+                            value="{{
+                                old('is_edit') == $dispositivo->id
+                                    ? old('capacidad_bateria_mah')
+                                    : $dispositivo->capacidad_bateria_mah
+                            }}"
+                            class="w-full rounded-xl
+                                   border-gray-300 pr-16
+                                   focus:border-[#0056b3]
+                                   focus:ring-[#0056b3]"
+                        >
+
+
+                        <span
+                            class="pointer-events-none
+                                   absolute right-4 top-1/2
+                                   -translate-y-1/2
+                                   text-sm text-gray-400"
+                        >
+                            mAh
+                        </span>
+
+                    </div>
+
                 </div>
+
+
+                {{-- ================================================= --}}
+                {{-- VEHÍCULO --}}
+                {{-- ================================================= --}}
 
                 <div class="md:col-span-2">
-                    <label class="block mb-2 text-sm font-medium text-gray-900">Vincular a Vehículo</label>
-                    <select name="vehiculo_id" class="bg-gray-50 border {{ $errors->has('vehiculo_id') && old('is_edit') == $dispositivo->id ? 'border-red-500' : 'border-gray-300' }} text-gray-900 text-sm rounded-lg block w-full p-2.5">
-                        <option value="">-- Desvincular / Enviar a Stock --</option>
-                        
-                        <!-- Si ya tiene un vehículo asignado, lo mostramos -->
-                        @if($dispositivo->vehiculo)
-                            <option value="{{ $dispositivo->vehiculo->id }}" {{ old('vehiculo_id', $dispositivo->vehiculo_id) == $dispositivo->vehiculo->id ? 'selected' : '' }}>
-                                {{ $dispositivo->vehiculo->nombre }} (Actual)
-                            </option>
-                        @endif
 
-                        <!-- Mostramos los demás vehículos libres -->
+                    <label
+                        class="mb-1 block
+                               text-sm font-medium text-gray-700"
+                    >
+                        Vehículo asignado
+                    </label>
+
+
+                    <select
+                        name="vehiculo_id"
+                        class="w-full rounded-xl
+                               {{
+                                   $errors->has('vehiculo_id')
+                                   &&
+                                   old('is_edit') == $dispositivo->id
+                                       ? 'border-red-500'
+                                       : 'border-gray-300'
+                               }}
+                               focus:border-[#0056b3]
+                               focus:ring-[#0056b3]"
+                    >
+
+                        <option value="">
+                            Sin vehículo / Enviar a stock
+                        </option>
+
+
                         @foreach($vehiculos as $vehiculo)
-                            <option value="{{ $vehiculo->id }}" {{ old('vehiculo_id') == $vehiculo->id ? 'selected' : '' }}>
-                                {{ $vehiculo->nombre }} (Libre)
-                            </option>
+
+                            @if(
+                                !$vehiculo->dispositivo
+                                ||
+                                $vehiculo->dispositivo->id == $dispositivo->id
+                            )
+
+                                <option
+                                    value="{{ $vehiculo->id }}"
+                                    @selected(
+                                        (
+                                            old('is_edit') == $dispositivo->id
+                                                ? old('vehiculo_id')
+                                                : $dispositivo->vehiculo_id
+                                        ) == $vehiculo->id
+                                    )
+                                >
+
+                                    {{ $vehiculo->nombre }}
+
+                                    @if($vehiculo->placas)
+                                        — {{ $vehiculo->placas }}
+                                    @endif
+
+                                    @if(
+                                        $vehiculo->id ==
+                                        $dispositivo->vehiculo_id
+                                    )
+                                        — Actual
+                                    @endif
+
+                                </option>
+
+                            @endif
+
                         @endforeach
+
                     </select>
-                    @if($errors->has('vehiculo_id') && old('is_edit') == $dispositivo->id) <span class="text-xs text-red-600 mt-1 block">{{ $errors->first('vehiculo_id') }}</span> @endif
+
+
+                    @if(
+                        $errors->has('vehiculo_id')
+                        &&
+                        old('is_edit') == $dispositivo->id
+                    )
+
+                        <p class="mt-1 text-xs text-red-600">
+                            {{ $errors->first('vehiculo_id') }}
+                        </p>
+
+                    @endif
+
                 </div>
+
             </div>
 
-            <div class="flex items-center pt-2">
-                <input type="checkbox" name="modo_reposo" id="modo_reposo_{{ $dispositivo->id }}" value="1" {{ old('modo_reposo', $dispositivo->modo_reposo) ? 'checked' : '' }} class="w-4 h-4 text-gray-900 bg-gray-100 border-gray-300 rounded focus:ring-gray-900">
-                <label for="modo_reposo_{{ $dispositivo->id }}" class="ml-2 text-sm font-medium text-gray-900">Modo Reposo Activo</label>
+
+            {{-- ================================================= --}}
+            {{-- CONFIGURACIÓN --}}
+            {{-- ================================================= --}}
+
+            <div
+                class="mt-6 grid grid-cols-1 gap-4
+                       rounded-xl border border-gray-200
+                       bg-gray-50 p-4 md:grid-cols-2"
+            >
+
+                {{-- ACTIVO --}}
+                <label
+                    class="flex cursor-pointer
+                           items-start gap-3"
+                >
+
+                    <input
+                        type="hidden"
+                        name="activo"
+                        value="0"
+                    >
+
+
+                    <input
+                        type="checkbox"
+                        name="activo"
+                        value="1"
+                        @checked(
+                            old('is_edit') == $dispositivo->id
+                                ? old('activo')
+                                : $dispositivo->activo
+                        )
+                        class="mt-0.5 rounded
+                               border-gray-300 text-[#0056b3]
+                               focus:ring-[#0056b3]"
+                    >
+
+
+                    <span>
+
+                        <span
+                            class="block text-sm
+                                   font-medium text-gray-800"
+                        >
+                            Dispositivo activo
+                        </span>
+
+                        <span
+                            class="block text-xs text-gray-500"
+                        >
+                            Habilita el uso del GPS en el sistema.
+                        </span>
+
+                    </span>
+
+                </label>
+
+
+                {{-- REPOSO --}}
+                <label
+                    class="flex cursor-pointer
+                           items-start gap-3"
+                >
+
+                    <input
+                        type="hidden"
+                        name="modo_reposo"
+                        value="0"
+                    >
+
+
+                    <input
+                        type="checkbox"
+                        name="modo_reposo"
+                        value="1"
+                        @checked(
+                            old('is_edit') == $dispositivo->id
+                                ? old('modo_reposo')
+                                : $dispositivo->modo_reposo
+                        )
+                        class="mt-0.5 rounded
+                               border-gray-300 text-[#0056b3]
+                               focus:ring-[#0056b3]"
+                    >
+
+
+                    <span>
+
+                        <span
+                            class="block text-sm
+                                   font-medium text-gray-800"
+                        >
+                            Modo reposo
+                        </span>
+
+                        <span
+                            class="block text-xs text-gray-500"
+                        >
+                            Configuración de ahorro de batería.
+                        </span>
+
+                    </span>
+
+                </label>
+
             </div>
 
-            <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                <button type="button" @click="openEdit = false" class="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancelar</button>
-                <button type="submit" class="px-5 py-2.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800">Actualizar</button>
+
+            {{-- ================================================= --}}
+            {{-- BOTONES --}}
+            {{-- ================================================= --}}
+
+            <div
+                class="mt-6 flex justify-end gap-3
+                       border-t border-gray-200 pt-5"
+            >
+
+                <button
+                    type="button"
+                    @click="openEdit = false"
+                    class="rounded-xl
+                           border border-gray-300
+                           px-4 py-2.5
+                           text-sm font-medium
+                           text-gray-700
+                           transition-colors
+                           hover:bg-gray-50"
+                >
+                    Cancelar
+                </button>
+
+
+                <button
+                    type="submit"
+                    class="inline-flex items-center gap-2
+                           rounded-xl bg-[#0056b3]
+                           px-4 py-2.5
+                           text-sm font-medium text-white
+                           transition-colors
+                           hover:bg-[#004494]"
+                >
+
+                    <span
+                        class="material-symbols-rounded
+                               text-[18px]"
+                    >
+                        save
+                    </span>
+
+                    Guardar cambios
+
+                </button>
+
             </div>
+
         </form>
+
     </div>
+
 </div>

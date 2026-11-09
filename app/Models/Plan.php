@@ -5,27 +5,24 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Flotilla extends Model
+class Plan extends Model
 {
     use HasFactory;
 
-    protected $table = 'flotillas';
+    protected $table = 'planes';
 
     protected $fillable = [
-        'user_id',
         'nombre',
-        'descripcion'
+        'precio',
+        'limite_activos',
+        'caracteristicas',
+        'activo',
     ];
 
-    // Relación: Una flotilla pertenece a un usuario (gestor/responsable)
-    public function usuario()
-    {
-        return $this->belongsTo(User::class, 'user_id');
-    }
-
-    // Relación: Una flotilla tiene muchos activos
-    public function activos()
-    {
-        return $this->hasMany(Activo::class);
-    }
+    protected $casts = [
+        'precio' => 'decimal:2',
+        'limite_activos' => 'integer',
+        'caracteristicas' => 'array',
+        'activo' => 'boolean',
+    ];
 }

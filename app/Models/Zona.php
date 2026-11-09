@@ -19,63 +19,111 @@ class Zona extends Model
         'user_id',
         'nombre',
         'color_hex',
-        'poligono'
+        'poligono',
     ];
 
-    // ==========================================
-    // RELACIONES MULTI-TENANT (SaaS)
-    // ==========================================
+
+    /*
+    |--------------------------------------------------------------------------
+    | PROPIETARIO
+    |--------------------------------------------------------------------------
+    */
 
     public function empresa(): BelongsTo
     {
-        return $this->belongsTo(Empresa::class);
+        return $this->belongsTo(
+            Empresa::class
+        );
     }
+
 
     public function usuario(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return $this->belongsTo(
+            User::class,
+            'user_id'
+        );
     }
 
-    // ==========================================
-    // RELACIONES DE GEOCERCAS Y EVENTOS
-    // ==========================================
+
+    /*
+    |--------------------------------------------------------------------------
+    | VEHÍCULOS
+    |--------------------------------------------------------------------------
+    */
 
     public function vehiculos(): BelongsToMany
     {
-        return $this->belongsToMany(Vehiculo::class, 'vehiculo_zona')
-                    ->withPivot([
-                        'tipo_regla',
-                        'notificar_entrada',
-                        'notificar_salida',
-                        'permanencia_minima_minutos',
-                        'permanencia_maxima_minutos',
-                    ])
-                    ->withTimestamps();
+        return $this->belongsToMany(
+            Vehiculo::class,
+            'vehiculo_zona'
+        )
+        ->withPivot([
+            'tipo_regla',
+            'notificar_entrada',
+            'notificar_salida',
+            'permanencia_minima_minutos',
+            'permanencia_maxima_minutos',
+        ])
+        ->withTimestamps();
     }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | EVENTOS
+    |--------------------------------------------------------------------------
+    */
 
     public function eventos(): HasMany
     {
-        return $this->hasMany(EventoGeocerca::class, 'zona_id');
+        return $this->hasMany(
+            EventoGeocerca::class,
+            'zona_id'
+        );
     }
 
-    /**
-     * Regla de negocio central: una zona SOLO puede asignarse a un vehículo
-     * que pertenezca al mismo dueño (misma empresa, o mismo Cliente Individual).
-     * Úsalo antes de cualquier attach/sync en la tabla vehiculo_zona.
-     */
-    public function puedeAsignarseA(Vehiculo $vehiculo): bool
-    {
-        // Zona de un Cliente Individual: el vehículo debe ser del mismo usuario.
-        if ($this->user_id !== null) {
-            return $this->user_id === $vehiculo->user_id;
+
+    /*
+    |--------------------------------------------------------------------------
+    | REGLA MULTI-TENANT
+    |--------------------------------------------------------------------------
+    */
+
+    public function puedeAsignarseA(
+        Vehiculo $vehiculo
+    ): bool {
+
+        /*
+        | Cliente Individual
+        */
+
+        if (
+            $this->user_id !== null
+        ) {
+
+            return
+                (int) $this->user_id
+                ===
+                (int) $vehiculo->user_id;
         }
 
-        // Zona corporativa: el vehículo debe ser de la misma empresa.
-        if ($this->empresa_id !== null) {
-            return $this->empresa_id === $vehiculo->empresa_id;
+
+        /*
+        | Empresa
+        */
+
+        if (
+            $this->empresa_id !== null
+        ) {
+
+            return
+                (int) $this->empresa_id
+                ===
+                (int) $vehiculo->empresa_id;
         }
 
-        // Zona sin dueño definido (no debería pasar, pero por seguridad se rechaza).
+
         return false;
     }
 }
