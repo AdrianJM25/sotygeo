@@ -1,3 +1,4 @@
+
 <?php
 
 namespace App\Http\Controllers\Auth;
@@ -30,10 +31,13 @@ class AuthenticatedSessionController extends Controller
 
         $user = Auth::user();
 
-        // Bloquear acceso si el usuario fue desactivado desde el panel de Administrador
+        // Bloquear acceso si el usuario fue desactivado
+        // desde el panel de Administrador.
         if (! $user->activo) {
             Auth::logout();
+
             $request->session()->invalidate();
+
             $request->session()->regenerateToken();
 
             return redirect()->route('login')->withErrors([
@@ -41,10 +45,17 @@ class AuthenticatedSessionController extends Controller
             ]);
         }
 
-        // Registrar la fecha del último acceso
-        $user->update(['ultimo_login' => now()]);
+        // Registrar la fecha del último acceso.
+        $user->update([
+            'ultimo_login' => now(),
+        ]);
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        // Eliminar cualquier URL pendiente de la sesión
+        // para evitar redirecciones hacia las API internas.
+        $request->session()->forget('url.intended');
+
+        // Redirigir siempre al Dashboard de SotyGeo.
+        return redirect()->route('dashboard');
     }
 
     /**
