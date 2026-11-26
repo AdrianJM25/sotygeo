@@ -23,6 +23,18 @@ class GpsController extends Controller
 
     public function traccar(Request $request)
     {
+        Log::info('TRACCAR DIAGNOSTICO', [
+            'metodo' => $request->method(),
+            'ruta' => $request->path(),
+            'content_type' => $request->header('Content-Type'),
+            'campos' => array_keys($request->all()),
+            'tiene_id' => $request->filled('id'),
+            'tiene_device_id' => $request->filled('device_id'),
+            'tiene_location' => $request->has('location'),
+            'tiene_lat' => $request->filled('lat'),
+            'tiene_lon' => $request->filled('lon'),
+        ]);
+
         /*
         |--------------------------------------------------------------------------
         | IMEI
