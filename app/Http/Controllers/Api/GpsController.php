@@ -23,17 +23,23 @@ class GpsController extends Controller
 
     public function traccar(Request $request)
     {
-        Log::info('TRACCAR DIAGNOSTICO', [
-            'metodo' => $request->method(),
-            'ruta' => $request->path(),
-            'content_type' => $request->header('Content-Type'),
-            'campos' => array_keys($request->all()),
-            'tiene_id' => $request->filled('id'),
-            'tiene_device_id' => $request->filled('device_id'),
-            'tiene_location' => $request->has('location'),
-            'tiene_lat' => $request->filled('lat'),
-            'tiene_lon' => $request->filled('lon'),
-        ]);
+        /*
+        |--------------------------------------------------------------------------
+        | AUTENTICACIÓN DEL RECEPTOR GPS
+        |--------------------------------------------------------------------------
+        */
+
+        $tokenConfigurado = config('services.gps.token');
+        $tokenRecibido = $request->bearerToken() ?? $request->query('token');
+
+        if (!is_string($tokenConfigurado) || $tokenConfigurado === '') {
+            Log::error('Receptor GPS: token de seguridad no configurado.');
+            return response('Receptor GPS no disponible', 503);
+        }
+
+        if (!is_string($tokenRecibido) || !hash_equals($tokenConfigurado, $tokenRecibido)) {
+            return response('No autorizado', 401);
+        }
 
         /*
         |--------------------------------------------------------------------------
