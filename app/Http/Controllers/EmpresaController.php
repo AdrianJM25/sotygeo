@@ -4,72 +4,168 @@ namespace App\Http\Controllers;
 
 use App\Models\Empresa;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class EmpresaController extends Controller
 {
     /**
-     * Mostrar la lista de empresas corporativas.
+     * Mostrar la lista de empresas.
      */
     public function index()
     {
-        // Traemos las empresas junto con el conteo de usuarios y ahora VEHICULOS (en lugar de activos)
-        $empresas = Empresa::withCount(['usuarios', 'vehiculos'])->latest()->paginate(10);
-        
-        return view('empresas.index', compact('empresas'));
+        $empresas = Empresa::query()
+            ->withCount([
+                'usuarios',
+                'vehiculos',
+                'dispositivos',
+                'flotillas',
+                'zonas',
+            ])
+            ->latest()
+            ->paginate(10);
+
+        return view(
+            'empresas.index',
+            compact('empresas')
+        );
     }
 
     /**
-     * Guardar una nueva empresa en la base de datos.
+     * Registrar una nueva empresa.
      */
     public function store(Request $request)
     {
-        $request->validate([
-            'nombre' => 'required|string|max:255',
-            'rfc' => 'nullable|string|max:20',
-            'telefono' => 'nullable|string|max:20',
-            'correo' => 'nullable|email|max:255',
+        $validated = $request->validate([
+            'nombre' => [
+                'required',
+                'string',
+                'max:255',
+            ],
+            'rfc' => [
+                'nullable',
+                'string',
+                'max:20',
+                Rule::unique('empresas', 'rfc'),
+            ],
+            'telefono' => [
+                'nullable',
+                'string',
+                'max:20',
+            ],
+            'correo' => [
+                'nullable',
+                'email',
+                'max:255',
+            ],
+            'is_active' => [
+                'nullable',
+                'boolean',
+            ],
         ]);
 
-        Empresa::create([
-            'nombre' => $request->nombre,
-            'rfc' => $request->rfc,
-            'telefono' => $request->telefono,
-            'correo' => $request->correo,
-            'is_active' => $request->has('is_active'),
-        ]);
+        $validated['rfc'] = filled($validated['rfc'] ?? null)
+            ? strtoupper(trim($validated['rfc']))
+            : null;
 
-        return redirect()->route('empresas.index')->with('success', 'Empresa registrada correctamente.');
+        $validated['nombre'] = trim($validated['nombre']);
+        $validated['telefono'] = filled($validated['telefono'] ?? null)
+            ? trim($validated['telefono'])
+            : null;
+        $validated['correo'] = filled($validated['correo'] ?? null)
+            ? strtolower(trim($validated['correo']))
+            : null;
+        $validated['is_active'] = $request->boolean('is_active');
+
+        Empresa::create($validated);
+
+        return redirect()
+            ->route('empresas.index')
+            ->with(
+                'success',
+                'Empresa registrada correctamente.'
+            );
     }
 
     /**
-     * Actualizar los datos de una empresa existente.
+     * Actualizar una empresa existente.
      */
-    public function update(Request $request, Empresa $empresa)
-    {
-        $request->validate([
-            'nombre' => 'required|string|max:255',
-            'rfc' => 'nullable|string|max:20',
-            'telefono' => 'nullable|string|max:20',
-            'correo' => 'nullable|email|max:255',
+    public function update(
+        Request $request,
+        Empresa $empresa
+    ) {
+        $validated = $request->validate([
+            'nombre' => [
+                'required',
+                'string',
+                'max:255',
+            ],
+            'rfc' => [
+                'nullable',
+                'string',
+                'max:20',
+                Rule::unique('empresas', 'rfc')
+                    ->ignore($empresa->id),
+            ],
+            'telefono' => [
+                'nullable',
+                'string',
+                'max:20',
+            ],
+            'correo' => [
+                'nullable',
+                'email',
+                'max:255',
+            ],
+            'is_active' => [
+                'nullable',
+                'boolean',
+            ],
+            'is_edit' => [
+                'nullable',
+                'integer',
+            ],
         ]);
 
-        $empresa->update([
-            'nombre' => $request->nombre,
-            'rfc' => $request->rfc,
-            'telefono' => $request->telefono,
-            'correo' => $request->correo,
-            'is_active' => $request->has('is_active'),
-        ]);
+        $validated['rfc'] = filled($validated['rfc'] ?? null)
+            ? strtoupper(trim($validated['rfc']))
+            : null;
 
-        return redirect()->route('empresas.index')->with('success', 'Empresa actualizada correctamente.');
+        $validated['nombre'] = trim($validated['nombre']);
+        $validated['telefono'] = filled($validated['telefono'] ?? null)
+            ? trim($validated['telefono'])
+            : null;
+        $validated['correo'] = filled($validated['correo'] ?? null)
+            ? strtolower(trim($validated['correo']))
+            : null;
+        $validated['is_active'] = $request->boolean('is_active');
+
+        unset($validated['is_edit']);
+
+        $empresa->update($validated);
+
+        return redirect()
+            ->route('empresas.index')
+            ->with(
+                'success',
+                'Empresa actualizada correctamente.'
+            );
     }
 
     /**
-     * Eliminar una empresa (esto también eliminará en cascada usuarios y vehículos vinculados).
+     * Eliminar una empresa.
      */
     public function destroy(Empresa $empresa)
     {
-        $empresa->delete();
-        return redirect()->route('empresas.index')->with('success', 'Empresa y todos sus registros vinculados eliminados correctamente.');
+        DB::transaction(function () use ($empresa) {
+            $empresa->delete();
+        });
+
+        return redirect()
+            ->route('empresas.index')
+            ->with(
+                'success',
+                'Empresa eliminada correctamente.'
+            );
     }
 }

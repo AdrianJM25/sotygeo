@@ -22,6 +22,7 @@ use App\Http\Controllers\ReporteInspeccionesController;
 use App\Http\Controllers\ReporteFlotillasController;
 use App\Http\Controllers\ReporteConductoresController;
 use App\Http\Controllers\BackupController;
+use App\Http\Controllers\NotificacionController;
 
 use App\Http\Controllers\Api\DashboardApiController;
 
@@ -170,6 +171,43 @@ Route::middleware('auth')
 
 
         // ==========================================
+        // FOTO DE PERFIL
+        // ==========================================
+
+        Route::get(
+            '/profile/avatar/imagen',
+            [
+                ProfileController::class,
+                'showAvatar',
+            ]
+        )->name(
+            'profile.avatar.show'
+        );
+
+
+        Route::patch(
+            '/profile/avatar',
+            [
+                ProfileController::class,
+                'updateAvatar',
+            ]
+        )->name(
+            'profile.avatar.update'
+        );
+
+
+        Route::delete(
+            '/profile/avatar',
+            [
+                ProfileController::class,
+                'destroyAvatar',
+            ]
+        )->name(
+            'profile.avatar.destroy'
+        );
+
+
+        // ==========================================
         // EMPRESAS
         // ==========================================
 
@@ -181,7 +219,12 @@ Route::middleware('auth')
                 Route::resource(
                     'empresas',
                     EmpresaController::class
-                );
+                )->only([
+                    'index',
+                    'store',
+                    'update',
+                    'destroy',
+                ]);
 
             });
 
@@ -199,6 +242,37 @@ Route::middleware('auth')
                 Route::resource(
                     'usuarios',
                     UserController::class
+                )->only([
+                    'index',
+                    'store',
+                    'update',
+                    'destroy',
+                ]);
+
+
+                Route::get(
+                    'usuarios/{usuario}/avatar',
+                    [
+                        UserController::class,
+                        'avatar',
+                    ]
+                )->name(
+                    'usuarios.avatar'
+                );
+
+
+                // ======================================
+                // REENVIAR ACCESO INICIAL
+                // ======================================
+
+                Route::post(
+                    'usuarios/{usuario}/reenviar-acceso',
+                    [
+                        UserController::class,
+                        'reenviarAcceso',
+                    ]
+                )->name(
+                    'usuarios.reenviar-acceso'
                 );
 
 
@@ -829,6 +903,80 @@ Route::middleware('auth')
             ]
         )->name(
             'backups.download'
+        );
+
+
+        // ==========================================
+        // FN.22 - RESTAURAR RESPALDO
+        // ==========================================
+
+        Route::post(
+            '/respaldos/{archivo}/restaurar',
+            [
+                BackupController::class,
+                'restore',
+            ]
+        )->name(
+            'backups.restore'
+        );
+
+
+        // ==========================================
+        // FN.23 - NOTIFICACIONES
+        // ==========================================
+
+        Route::get(
+            '/notificaciones',
+            [
+                NotificacionController::class,
+                'index',
+            ]
+        )->name(
+            'notificaciones.index'
+        );
+
+
+        Route::get(
+            '/notificaciones/recientes',
+            [
+                NotificacionController::class,
+                'recientes',
+            ]
+        )->name(
+            'notificaciones.recientes'
+        );
+
+
+        Route::patch(
+            '/notificaciones/leer-todas',
+            [
+                NotificacionController::class,
+                'marcarTodasLeidas',
+            ]
+        )->name(
+            'notificaciones.leer-todas'
+        );
+
+
+        Route::patch(
+            '/notificaciones/{id}/leer',
+            [
+                NotificacionController::class,
+                'marcarLeida',
+            ]
+        )->name(
+            'notificaciones.leer'
+        );
+
+
+        Route::delete(
+            '/notificaciones/{id}',
+            [
+                NotificacionController::class,
+                'destroy',
+            ]
+        )->name(
+            'notificaciones.destroy'
         );
 
 

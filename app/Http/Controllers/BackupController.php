@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use AmdadulHaq\DatabaseBackup\DatabaseBackupManager;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 class BackupController extends Controller
 {
@@ -14,62 +17,110 @@ class BackupController extends Controller
     |--------------------------------------------------------------------------
     */
 
+    public function __construct(
+        private readonly DatabaseBackupManager $backupManager
+    ) {
+        //
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | MOSTRAR RESPALDOS
+    |--------------------------------------------------------------------------
+    */
+
     public function index()
     {
         $this->validarSuperAdministrador();
 
-        $directorio = storage_path(
-            'app/backups'
-        );
+        $conexion =
+            config(
+                'database-backup.connection',
+                'pgsql'
+            );
 
-        File::ensureDirectoryExists(
-            $directorio
-        );
 
         /*
         |--------------------------------------------------------------------------
-        | LISTAR RESPALDOS
+        | CONSULTAR RESPALDOS
         |--------------------------------------------------------------------------
         */
 
-        $respaldos = collect(
-            File::files(
-                $directorio
-            )
-        )
-            ->filter(
-                function ($archivo) {
+        try {
 
-                    return strtolower(
-                        $archivo->getExtension()
-                    ) === 'backup';
-                }
+            $archivos =
+                $this->backupManager
+                    ->backups(
+                        $conexion
+                    );
+
+        } catch (Throwable $e) {
+
+            report(
+                $e
+            );
+
+            $archivos =
+                [];
+
+            session()->flash(
+                'backup_error',
+                'No fue posible consultar los respaldos.'
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | PREPARAR RESPALDOS PARA LA VISTA
+        |--------------------------------------------------------------------------
+        */
+
+        $respaldos =
+            collect(
+                $archivos
             )
             ->map(
-                function ($archivo) {
+                function (
+                    array $respaldo
+                ) {
 
                     return [
 
                         'nombre' =>
-                            $archivo->getFilename(),
+                            basename(
+                                $respaldo[
+                                    'path'
+                                ]
+                            ),
+
+                        'ruta' =>
+                            $respaldo[
+                                'path'
+                            ],
 
                         'tamano' =>
                             $this->formatearTamano(
-                                $archivo->getSize()
+                                (int)
+                                $respaldo[
+                                    'size'
+                                ]
                             ),
 
                         'fecha' =>
                             Carbon::createFromTimestamp(
-                                $archivo->getMTime()
+                                (int)
+                                $respaldo[
+                                    'modified'
+                                ]
                             ),
 
                     ];
                 }
             )
-            ->sortByDesc(
-                'fecha'
-            )
             ->values();
+
 
         return view(
             'backups.index',
@@ -93,218 +144,50 @@ class BackupController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | CONFIGURACIÓN DE POSTGRESQL
+        | CONEXIÓN
         |--------------------------------------------------------------------------
         */
 
-        $conexion = config(
-            'database.connections.pgsql'
-        );
-
-
-        if (!$conexion) {
-
-            return back()
-                ->withErrors([
-                    'backup' =>
-                        'No se encontró la configuración de PostgreSQL.',
-                ]);
-        }
-
-
-        $host =
-            $conexion['host']
-            ??
-            '127.0.0.1';
-
-
-        $puerto =
-            $conexion['port']
-            ??
-            '5432';
-
-
-        $baseDatos =
-            $conexion['database']
-            ??
-            null;
-
-
-        $usuario =
-            $conexion['username']
-            ??
-            null;
-
-
-        $password =
-            (string) (
-                $conexion['password']
-                ??
-                ''
+        $conexion =
+            config(
+                'database-backup.connection',
+                'pgsql'
             );
 
 
         /*
         |--------------------------------------------------------------------------
-        | VALIDAR CONFIGURACIÓN
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            !$baseDatos
-            ||
-            !$usuario
-        ) {
-
-            return back()
-                ->withErrors([
-                    'backup' =>
-                        'La configuración de PostgreSQL está incompleta.',
-                ]);
-        }
-
-
-        if (
-            $password === ''
-        ) {
-
-            return back()
-                ->withErrors([
-                    'backup' =>
-                        'No se encontró la contraseña de PostgreSQL.',
-                ]);
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | DIRECTORIO DE RESPALDOS
-        |--------------------------------------------------------------------------
-        */
-
-        $directorio = storage_path(
-            'app/backups'
-        );
-
-
-        File::ensureDirectoryExists(
-            $directorio
-        );
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | NOMBRE DEL ARCHIVO
-        |--------------------------------------------------------------------------
-        */
-
-        $fecha = now()->format(
-            'Ymd_His'
-        );
-
-
-        $nombreArchivo =
-            'sotygeo_backup_'
-            .
-            $fecha
-            .
-            '.backup';
-
-
-        $rutaArchivo =
-            $directorio
-            .
-            DIRECTORY_SEPARATOR
-            .
-            $nombreArchivo;
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | PG_DUMP
-        |--------------------------------------------------------------------------
-        */
-
-        $pgDump = env(
-            'PG_DUMP_PATH',
-            'C:/Program Files/PostgreSQL/18/bin/pg_dump.exe'
-        );
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | VALIDAR PG_DUMP
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            !File::exists(
-                $pgDump
-            )
-        ) {
-
-            return back()
-                ->withErrors([
-                    'backup' =>
-                        'No se encontró pg_dump en la ruta configurada: '
-                        .
-                        $pgDump,
-                ]);
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | PROCESO PG_DUMP
+        | EJECUTAR COMANDO CLI DE LA LIBRERÍA
         |--------------------------------------------------------------------------
         |
-        | IMPORTANTE:
+        | Ejecutamos:
         |
-        | Este bloque utiliza exactamente el mismo método
-        | comprobado correctamente desde Laravel Tinker.
+        | php artisan db:backup --connection=pgsql
+        |
+        | dentro de un proceso PHP CLI separado.
         |
         */
 
-        $proceso = new Process(
-            [
+        $proceso =
+            new Process(
+                [
 
-                $pgDump,
+                    PHP_BINARY,
 
-                '--host='
-                .
-                $host,
+                    base_path(
+                        'artisan'
+                    ),
 
-                '--port='
-                .
-                $puerto,
+                    'db:backup',
 
-                '--username='
-                .
-                $usuario,
+                    '--connection='
+                    .
+                    $conexion,
 
-                '--dbname='
-                .
-                $baseDatos,
+                ],
 
-                '--format=custom',
-
-                '--no-owner',
-
-                '--no-privileges',
-
-                '--file='
-                .
-                $rutaArchivo,
-
-            ],
-
-            null,
-
-            [
-                'PGPASSWORD' =>
-                    $password,
-            ]
-        );
+                base_path()
+            );
 
 
         /*
@@ -314,13 +197,19 @@ class BackupController extends Controller
         */
 
         $proceso->setTimeout(
-            300
+            (float)
+            config(
+                'database-backup.timeout',
+                900
+            )
+            +
+            60
         );
 
 
         /*
         |--------------------------------------------------------------------------
-        | EJECUTAR RESPALDO
+        | EJECUTAR
         |--------------------------------------------------------------------------
         */
 
@@ -328,30 +217,51 @@ class BackupController extends Controller
 
             $proceso->run();
 
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
 
             /*
             |--------------------------------------------------------------------------
-            | ELIMINAR ARCHIVO INCOMPLETO
+            | REGISTRAR EXCEPCIÓN
             |--------------------------------------------------------------------------
             */
 
-            if (
-                File::exists(
-                    $rutaArchivo
-                )
-            ) {
+            Log::error(
+                'FN21 - Excepción al iniciar el proceso de respaldo',
+                [
 
-                File::delete(
-                    $rutaArchivo
-                );
-            }
+                    'mensaje' =>
+                        $e->getMessage(),
+
+                    'php_binary' =>
+                        PHP_BINARY,
+
+                    'artisan' =>
+                        base_path(
+                            'artisan'
+                        ),
+
+                    'connection' =>
+                        $conexion,
+
+                    'temp_directory' =>
+                        sys_get_temp_dir(),
+
+                    'working_directory' =>
+                        base_path(),
+
+                ]
+            );
+
+
+            report(
+                $e
+            );
 
 
             return back()
                 ->withErrors([
                     'backup' =>
-                        'No fue posible ejecutar pg_dump. '
+                        'No fue posible iniciar el proceso de respaldo: '
                         .
                         $e->getMessage(),
                 ]);
@@ -360,7 +270,7 @@ class BackupController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | VERIFICAR PG_DUMP
+        | COMPROBAR RESULTADO
         |--------------------------------------------------------------------------
         */
 
@@ -368,34 +278,214 @@ class BackupController extends Controller
             !$proceso->isSuccessful()
         ) {
 
-            if (
-                File::exists(
-                    $rutaArchivo
-                )
-            ) {
+            /*
+            |--------------------------------------------------------------------------
+            | OBTENER SALIDAS CRUDAS
+            |--------------------------------------------------------------------------
+            */
 
-                File::delete(
-                    $rutaArchivo
-                );
-            }
+            $stderr =
+                $proceso
+                    ->getErrorOutput();
 
 
-            $error =
-                trim(
-                    $proceso->getErrorOutput()
-                );
+            $stdout =
+                $proceso
+                    ->getOutput();
 
 
             /*
             |--------------------------------------------------------------------------
-            | ERROR SIN DETALLE
+            | GUARDAR DIAGNÓSTICO EN LARAVEL.LOG
+            |--------------------------------------------------------------------------
+            |
+            | No se registra ninguna contraseña.
+            |
+            */
+
+            Log::error(
+                'FN21 - Error al generar respaldo',
+                [
+
+                    'exit_code' =>
+                        $proceso
+                            ->getExitCode(),
+
+                    'successful' =>
+                        $proceso
+                            ->isSuccessful(),
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | STDERR
+                    |--------------------------------------------------------------------------
+                    */
+
+                    'stderr' =>
+                        $stderr,
+
+                    'stderr_base64' =>
+                        base64_encode(
+                            $stderr
+                        ),
+
+                    'stderr_hex' =>
+                        bin2hex(
+                            $stderr
+                        ),
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | STDOUT
+                    |--------------------------------------------------------------------------
+                    */
+
+                    'stdout' =>
+                        $stdout,
+
+                    'stdout_base64' =>
+                        base64_encode(
+                            $stdout
+                        ),
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | PROCESO
+                    |--------------------------------------------------------------------------
+                    */
+
+                    'php_binary' =>
+                        PHP_BINARY,
+
+                    'artisan' =>
+                        base_path(
+                            'artisan'
+                        ),
+
+                    'command_line' =>
+                        $proceso
+                            ->getCommandLine(),
+
+                    'connection' =>
+                        $conexion,
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | DIRECTORIOS
+                    |--------------------------------------------------------------------------
+                    */
+
+                    'temp_directory' =>
+                        sys_get_temp_dir(),
+
+                    'temp_directory_exists' =>
+                        is_dir(
+                            sys_get_temp_dir()
+                        ),
+
+                    'temp_directory_writable' =>
+                        is_writable(
+                            sys_get_temp_dir()
+                        ),
+
+                    'working_directory' =>
+                        base_path(),
+
+                    'working_directory_exists' =>
+                        is_dir(
+                            base_path()
+                        ),
+
+                    'storage_path' =>
+                        storage_path(),
+
+                    'backup_temp_path' =>
+                        storage_path(
+                            'app/backup-temp'
+                        ),
+
+                    'backup_temp_exists' =>
+                        is_dir(
+                            storage_path(
+                                'app/backup-temp'
+                            )
+                        ),
+
+                    'backup_temp_writable' =>
+                        is_writable(
+                            storage_path(
+                                'app/backup-temp'
+                            )
+                        ),
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | CONFIGURACIÓN DE LA LIBRERÍA
+                    |--------------------------------------------------------------------------
+                    */
+
+                    'backup_disk' =>
+                        config(
+                            'database-backup.disk'
+                        ),
+
+                    'backup_path' =>
+                        config(
+                            'database-backup.path'
+                        ),
+
+                    'backup_temp_config' =>
+                        config(
+                            'database-backup.temp_directory'
+                        ),
+
+                    'pg_dump_binary' =>
+                        config(
+                            'database-backup.binaries.pg_dump'
+                        ),
+
+                    'pgsql_extra_options' =>
+                        config(
+                            'database-backup.extra_options.pgsql'
+                        ),
+
+                ]
+            );
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | PREPARAR MENSAJE PARA LA INTERFAZ
             |--------------------------------------------------------------------------
             */
 
-            if ($error === '') {
+            $detalle =
+                trim(
+                    $stderr
+                );
 
-                $error =
-                    'pg_dump terminó con código '
+
+            if (
+                $detalle === ''
+            ) {
+
+                $detalle =
+                    trim(
+                        $stdout
+                    );
+            }
+
+
+            if (
+                $detalle === ''
+            ) {
+
+                $detalle =
+                    'El proceso de respaldo terminó con código '
                     .
                     $proceso->getExitCode()
                     .
@@ -403,53 +493,18 @@ class BackupController extends Controller
             }
 
 
+            /*
+            |--------------------------------------------------------------------------
+            | REGRESAR ERROR
+            |--------------------------------------------------------------------------
+            */
+
             return back()
                 ->withErrors([
                     'backup' =>
                         'No fue posible generar el respaldo. '
                         .
-                        $error,
-                ]);
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | VALIDAR ARCHIVO GENERADO
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            !File::exists(
-                $rutaArchivo
-            )
-        ) {
-
-            return back()
-                ->withErrors([
-                    'backup' =>
-                        'pg_dump terminó correctamente, pero el archivo no fue encontrado.',
-                ]);
-        }
-
-
-        if (
-            File::size(
-                $rutaArchivo
-            )
-            <=
-            0
-        ) {
-
-            File::delete(
-                $rutaArchivo
-            );
-
-
-            return back()
-                ->withErrors([
-                    'backup' =>
-                        'El respaldo generado está vacío.',
+                        $detalle,
                 ]);
         }
 
@@ -466,7 +521,7 @@ class BackupController extends Controller
             )
             ->with(
                 'success',
-                'Respaldo generado correctamente.'
+                'Respaldo de la base de datos generado correctamente.'
             );
     }
 
@@ -485,20 +540,46 @@ class BackupController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | SEGURIDAD DEL NOMBRE
+        | SEGURIDAD
         |--------------------------------------------------------------------------
         */
 
-        $archivo = basename(
-            $archivo
-        );
+        $archivo =
+            basename(
+                $archivo
+            );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | VALIDAR EXTENSIÓN
+        |--------------------------------------------------------------------------
+        */
+
+        $nombreMinusculas =
+            strtolower(
+                $archivo
+            );
+
+
+        $esSql =
+            str_ends_with(
+                $nombreMinusculas,
+                '.sql'
+            );
+
+
+        $esSqlComprimido =
+            str_ends_with(
+                $nombreMinusculas,
+                '.sql.gz'
+            );
 
 
         if (
-            !preg_match(
-                '/^sotygeo_backup_\d{8}_\d{6}\.backup$/',
-                $archivo
-            )
+            !$esSql
+            &&
+            !$esSqlComprimido
         ) {
 
             abort(
@@ -509,27 +590,82 @@ class BackupController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | RUTA
+        | CONEXIÓN
         |--------------------------------------------------------------------------
         */
 
-        $ruta = storage_path(
-            'app/backups/'
-            .
-            $archivo
-        );
+        $conexion =
+            config(
+                'database-backup.connection',
+                'pgsql'
+            );
 
 
         /*
         |--------------------------------------------------------------------------
-        | VALIDAR EXISTENCIA
+        | CONSULTAR RESPALDOS
+        |--------------------------------------------------------------------------
+        */
+
+        try {
+
+            $respaldos =
+                $this->backupManager
+                    ->backups(
+                        $conexion
+                    );
+
+        } catch (Throwable $e) {
+
+            report(
+                $e
+            );
+
+
+            abort(
+                500,
+                'No fue posible consultar los respaldos.'
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | BUSCAR RESPALDO
+        |--------------------------------------------------------------------------
+        */
+
+        $respaldo =
+            collect(
+                $respaldos
+            )
+            ->first(
+                function (
+                    array $respaldo
+                ) use (
+                    $archivo
+                ) {
+
+                    return
+                        basename(
+                            $respaldo[
+                                'path'
+                            ]
+                        )
+                        ===
+                        $archivo;
+                }
+            );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | RESPALDO NO ENCONTRADO
         |--------------------------------------------------------------------------
         */
 
         if (
-            !File::exists(
-                $ruta
-            )
+            !$respaldo
         ) {
 
             abort(
@@ -541,18 +677,473 @@ class BackupController extends Controller
 
         /*
         |--------------------------------------------------------------------------
+        | DISCO
+        |--------------------------------------------------------------------------
+        */
+
+        $disco =
+            config(
+                'database-backup.disk',
+                'backups'
+            );
+
+
+        /*
+        |--------------------------------------------------------------------------
         | DESCARGAR
         |--------------------------------------------------------------------------
         */
 
-        return response()
+        return Storage::disk(
+            $disco
+        )
             ->download(
-                $ruta,
-                $archivo,
+                $respaldo[
+                    'path'
+                ],
+                $archivo
+            );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | FN.22 - RESTAURAR RESPALDO DE BASE DE DATOS
+    |--------------------------------------------------------------------------
+    */
+
+    public function restore(
+        string $archivo
+    ) {
+        $this->validarSuperAdministrador();
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | SEGURIDAD DEL NOMBRE DEL ARCHIVO
+        |--------------------------------------------------------------------------
+        */
+
+        $archivo =
+            basename(
+                $archivo
+            );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | VALIDAR EXTENSIÓN
+        |--------------------------------------------------------------------------
+        */
+
+        $nombreMinusculas =
+            strtolower(
+                $archivo
+            );
+
+
+        $esSql =
+            str_ends_with(
+                $nombreMinusculas,
+                '.sql'
+            );
+
+
+        $esSqlComprimido =
+            str_ends_with(
+                $nombreMinusculas,
+                '.sql.gz'
+            );
+
+
+        if (
+            !$esSql
+            &&
+            !$esSqlComprimido
+        ) {
+
+            abort(
+                404
+            );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | CONEXIÓN
+        |--------------------------------------------------------------------------
+        */
+
+        $conexion =
+            config(
+                'database-backup.connection',
+                'pgsql'
+            );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | LOCALIZAR EL RESPALDO EN EL DISCO CONFIGURADO
+        |--------------------------------------------------------------------------
+        */
+
+        try {
+
+            $respaldos =
+                $this->backupManager
+                    ->backups(
+                        $conexion
+                    );
+
+        } catch (Throwable $e) {
+
+            report(
+                $e
+            );
+
+
+            return back()
+                ->withErrors([
+                    'backup' =>
+                        'No fue posible consultar los respaldos antes de restaurar.',
+                ]);
+        }
+
+
+        $respaldo =
+            collect(
+                $respaldos
+            )
+            ->first(
+                function (
+                    array $respaldo
+                ) use (
+                    $archivo
+                ) {
+
+                    return
+                        basename(
+                            $respaldo[
+                                'path'
+                            ]
+                        )
+                        ===
+                        $archivo;
+                }
+            );
+
+
+        if (
+            !$respaldo
+        ) {
+
+            abort(
+                404,
+                'El respaldo solicitado no existe.'
+            );
+        }
+
+
+        $rutaRespaldo =
+            $respaldo[
+                'path'
+            ];
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | RESPALDO DE SEGURIDAD ANTES DE RESTAURAR
+        |--------------------------------------------------------------------------
+        |
+        | Antes de sobrescribir la base de datos se genera una copia del estado
+        | actual. Si esta copia falla, la restauración NO continúa.
+        |
+        */
+
+        $respaldoSeguridad =
+            new Process(
                 [
-                    'Content-Type' =>
-                        'application/octet-stream',
+
+                    PHP_BINARY,
+
+                    base_path(
+                        'artisan'
+                    ),
+
+                    'db:backup',
+
+                    '--connection='
+                    .
+                    $conexion,
+
+                ],
+
+                base_path()
+            );
+
+
+        $respaldoSeguridad->setTimeout(
+            (float)
+            config(
+                'database-backup.timeout',
+                900
+            )
+            +
+            60
+        );
+
+
+        try {
+
+            $respaldoSeguridad->run();
+
+        } catch (Throwable $e) {
+
+            Log::error(
+                'FN22 - Excepción al generar respaldo de seguridad antes de restaurar',
+                [
+                    'archivo_objetivo' => $archivo,
+                    'mensaje' => $e->getMessage(),
                 ]
+            );
+
+
+            report(
+                $e
+            );
+
+
+            return back()
+                ->withErrors([
+                    'backup' =>
+                        'No fue posible crear el respaldo de seguridad previo. '
+                        .
+                        'La restauración fue cancelada.',
+                ]);
+        }
+
+
+        if (
+            !$respaldoSeguridad->isSuccessful()
+        ) {
+
+            $stderrSeguridad =
+                trim(
+                    $respaldoSeguridad
+                        ->getErrorOutput()
+                );
+
+
+            $stdoutSeguridad =
+                trim(
+                    $respaldoSeguridad
+                        ->getOutput()
+                );
+
+
+            Log::error(
+                'FN22 - No se pudo crear respaldo de seguridad previo',
+                [
+                    'archivo_objetivo' => $archivo,
+                    'exit_code' => $respaldoSeguridad->getExitCode(),
+                    'stderr' => $stderrSeguridad,
+                    'stdout' => $stdoutSeguridad,
+                ]
+            );
+
+
+            return back()
+                ->withErrors([
+                    'backup' =>
+                        'No fue posible crear el respaldo de seguridad previo. '
+                        .
+                        'La restauración fue cancelada.',
+                ]);
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | EJECUTAR RESTAURACIÓN
+        |--------------------------------------------------------------------------
+        |
+        | La librería descarga el respaldo, lo descomprime si es necesario y lo
+        | restaura utilizando psql. --force evita la confirmación interactiva de
+        | consola porque la confirmación se realizará desde la interfaz web.
+        |
+        */
+
+        $proceso =
+            new Process(
+                [
+
+                    PHP_BINARY,
+
+                    base_path(
+                        'artisan'
+                    ),
+
+                    'db:restore',
+
+                    $rutaRespaldo,
+
+                    '--force',
+
+                ],
+
+                base_path()
+            );
+
+
+        $proceso->setTimeout(
+            (float)
+            config(
+                'database-backup.timeout',
+                900
+            )
+            +
+            120
+        );
+
+
+        try {
+
+            $proceso->run();
+
+        } catch (Throwable $e) {
+
+            Log::error(
+                'FN22 - Excepción al iniciar restauración',
+                [
+                    'archivo' => $archivo,
+                    'ruta' => $rutaRespaldo,
+                    'mensaje' => $e->getMessage(),
+                    'php_binary' => PHP_BINARY,
+                    'temp_directory' => sys_get_temp_dir(),
+                    'working_directory' => base_path(),
+                ]
+            );
+
+
+            report(
+                $e
+            );
+
+
+            return back()
+                ->withErrors([
+                    'backup' =>
+                        'No fue posible iniciar la restauración: '
+                        .
+                        $e->getMessage(),
+                ]);
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | VALIDAR RESULTADO DE LA RESTAURACIÓN
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            !$proceso->isSuccessful()
+        ) {
+
+            $stderr =
+                $proceso
+                    ->getErrorOutput();
+
+
+            $stdout =
+                $proceso
+                    ->getOutput();
+
+
+            Log::error(
+                'FN22 - Error al restaurar respaldo',
+                [
+                    'archivo' => $archivo,
+                    'ruta' => $rutaRespaldo,
+                    'exit_code' => $proceso->getExitCode(),
+                    'stderr' => $stderr,
+                    'stderr_base64' => base64_encode($stderr),
+                    'stdout' => $stdout,
+                    'stdout_base64' => base64_encode($stdout),
+                    'command_line' => $proceso->getCommandLine(),
+                    'temp_directory' => sys_get_temp_dir(),
+                    'psql_binary' => config(
+                        'database-backup.binaries.psql'
+                    ),
+                ]
+            );
+
+
+            $detalle =
+                trim(
+                    $stderr
+                );
+
+
+            if (
+                $detalle === ''
+            ) {
+
+                $detalle =
+                    trim(
+                        $stdout
+                    );
+            }
+
+
+            if (
+                $detalle === ''
+            ) {
+
+                $detalle =
+                    'El proceso de restauración terminó con código '
+                    .
+                    $proceso->getExitCode()
+                    .
+                    '.';
+            }
+
+
+            return back()
+                ->withErrors([
+                    'backup' =>
+                        'No fue posible restaurar la base de datos. '
+                        .
+                        $detalle,
+                ]);
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | RESTAURACIÓN CORRECTA
+        |--------------------------------------------------------------------------
+        */
+
+        Log::info(
+            'FN22 - Respaldo restaurado correctamente',
+            [
+                'archivo' => $archivo,
+                'ruta' => $rutaRespaldo,
+                'usuario_id' => auth()->id(),
+            ]
+        );
+
+
+        return redirect()
+            ->route(
+                'backups.index'
+            )
+            ->with(
+                'success',
+                'Base de datos restaurada correctamente desde: '
+                .
+                $archivo
             );
     }
 
@@ -565,7 +1156,8 @@ class BackupController extends Controller
 
     private function validarSuperAdministrador(): void
     {
-        $user = auth()->user();
+        $user =
+            auth()->user();
 
 
         if (
@@ -594,6 +1186,44 @@ class BackupController extends Controller
         int $bytes
     ): string {
 
+        /*
+        |--------------------------------------------------------------------------
+        | GB
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            $bytes
+            >=
+            1024
+            *
+            1024
+            *
+            1024
+        ) {
+
+            return
+                number_format(
+                    $bytes
+                    /
+                    1024
+                    /
+                    1024
+                    /
+                    1024,
+                    2
+                )
+                .
+                ' GB';
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | MB
+        |--------------------------------------------------------------------------
+        */
+
         if (
             $bytes
             >=
@@ -616,6 +1246,12 @@ class BackupController extends Controller
         }
 
 
+        /*
+        |--------------------------------------------------------------------------
+        | KB
+        |--------------------------------------------------------------------------
+        */
+
         if (
             $bytes
             >=
@@ -633,6 +1269,12 @@ class BackupController extends Controller
                 ' KB';
         }
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | BYTES
+        |--------------------------------------------------------------------------
+        */
 
         return
             $bytes

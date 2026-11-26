@@ -113,6 +113,19 @@ class ZonaController extends Controller
     {
         $user = auth()->user();
 
+        $vehiculosSeleccionados = collect($request->input('vehiculos', []))
+            ->filter(function ($vehiculo) {
+                return is_array($vehiculo)
+                    && isset($vehiculo['id'])
+                    && $vehiculo['id'] !== '';
+            })
+            ->values()
+            ->all();
+
+        $request->merge([
+            'vehiculos' => $vehiculosSeleccionados,
+        ]);
+
         $reglas = [
             'nombre' => [
                 'required',
@@ -175,7 +188,30 @@ class ZonaController extends Controller
             ];
         }
 
-        $datos = $request->validate($reglas);
+        $mensajes = [
+            'nombre.required' => 'Ingresa un nombre para la geocerca.',
+            'nombre.string' => 'El nombre de la geocerca no es válido.',
+            'nombre.max' => 'El nombre de la geocerca no puede exceder 255 caracteres.',
+            'color_hex.required' => 'Selecciona un color para la geocerca.',
+            'color_hex.regex' => 'El color seleccionado no es válido.',
+            'coordenadas.required' => 'Debes dibujar la geocerca en el mapa antes de guardarla.',
+            'coordenadas.string' => 'Las coordenadas de la geocerca no son válidas.',
+            'vehiculos.array' => 'La selección de vehículos no es válida.',
+            'vehiculos.*.id.required' => 'No fue posible identificar uno de los vehículos seleccionados.',
+            'vehiculos.*.id.exists' => 'Uno de los vehículos seleccionados ya no existe.',
+            'vehiculos.*.tipo_regla.required' => 'Selecciona el tipo de regla del vehículo.',
+            'vehiculos.*.tipo_regla.in' => 'El tipo de regla seleccionado no es válido.',
+            'vehiculos.*.notificar_entrada.boolean' => 'La configuración de alerta de entrada no es válida.',
+            'vehiculos.*.notificar_salida.boolean' => 'La configuración de alerta de salida no es válida.',
+            'vehiculos.*.permanencia_minima_minutos.integer' => 'La permanencia mínima debe ser un número entero.',
+            'vehiculos.*.permanencia_minima_minutos.min' => 'La permanencia mínima debe ser de al menos 1 minuto.',
+            'vehiculos.*.permanencia_maxima_minutos.integer' => 'La permanencia máxima debe ser un número entero.',
+            'vehiculos.*.permanencia_maxima_minutos.min' => 'La permanencia máxima debe ser de al menos 1 minuto.',
+            'propietario.required' => 'Selecciona un propietario para la geocerca.',
+            'propietario.string' => 'El propietario seleccionado no es válido.',
+        ];
+
+        $datos = $request->validate($reglas, $mensajes);
 
 
         /*
@@ -292,6 +328,19 @@ class ZonaController extends Controller
 
         $user = auth()->user();
 
+        $vehiculosSeleccionados = collect($request->input('vehiculos', []))
+            ->filter(function ($vehiculo) {
+                return is_array($vehiculo)
+                    && isset($vehiculo['id'])
+                    && $vehiculo['id'] !== '';
+            })
+            ->values()
+            ->all();
+
+        $request->merge([
+            'vehiculos' => $vehiculosSeleccionados,
+        ]);
+
         $reglas = [
             'nombre' => [
                 'required',
@@ -354,8 +403,32 @@ class ZonaController extends Controller
             ];
         }
 
+        $mensajes = [
+            'nombre.required' => 'Ingresa un nombre para la geocerca.',
+            'nombre.string' => 'El nombre de la geocerca no es válido.',
+            'nombre.max' => 'El nombre de la geocerca no puede exceder 255 caracteres.',
+            'color_hex.required' => 'Selecciona un color para la geocerca.',
+            'color_hex.regex' => 'El color seleccionado no es válido.',
+            'coordenadas.required' => 'Debes dibujar la geocerca en el mapa antes de guardarla.',
+            'coordenadas.string' => 'Las coordenadas de la geocerca no son válidas.',
+            'vehiculos.array' => 'La selección de vehículos no es válida.',
+            'vehiculos.*.id.required' => 'No fue posible identificar uno de los vehículos seleccionados.',
+            'vehiculos.*.id.exists' => 'Uno de los vehículos seleccionados ya no existe.',
+            'vehiculos.*.tipo_regla.required' => 'Selecciona el tipo de regla del vehículo.',
+            'vehiculos.*.tipo_regla.in' => 'El tipo de regla seleccionado no es válido.',
+            'vehiculos.*.notificar_entrada.boolean' => 'La configuración de alerta de entrada no es válida.',
+            'vehiculos.*.notificar_salida.boolean' => 'La configuración de alerta de salida no es válida.',
+            'vehiculos.*.permanencia_minima_minutos.integer' => 'La permanencia mínima debe ser un número entero.',
+            'vehiculos.*.permanencia_minima_minutos.min' => 'La permanencia mínima debe ser de al menos 1 minuto.',
+            'vehiculos.*.permanencia_maxima_minutos.integer' => 'La permanencia máxima debe ser un número entero.',
+            'vehiculos.*.permanencia_maxima_minutos.min' => 'La permanencia máxima debe ser de al menos 1 minuto.',
+            'propietario.required' => 'Selecciona un propietario para la geocerca.',
+            'propietario.string' => 'El propietario seleccionado no es válido.',
+        ];
+
         $datos = $request->validate(
-            $reglas
+            $reglas,
+            $mensajes
         );
 
 

@@ -1970,6 +1970,58 @@
 
                 /*
                 |--------------------------------------------------------------------------
+                | ENVIAR SOLO VEHÍCULOS SELECCIONADOS
+                |--------------------------------------------------------------------------
+                */
+
+                var formularioZona =
+                    document.getElementById(
+                        'form-zona'
+                    );
+
+                if (formularioZona) {
+
+                    formularioZona.addEventListener(
+                        'submit',
+                        function () {
+
+                            document.querySelectorAll(
+                                '.vehiculo-row'
+                            )
+                            .forEach(
+                                function (fila) {
+
+                                    var selector =
+                                        fila.querySelector(
+                                            '.vehiculo-selector'
+                                        );
+
+                                    var camposVehiculo =
+                                        fila.querySelectorAll(
+                                            'input[name^="vehiculos["], select[name^="vehiculos["]'
+                                        );
+
+                                    var seleccionado =
+                                        selector
+                                        &&
+                                        selector.checked
+                                        &&
+                                        !selector.disabled;
+
+                                    camposVehiculo.forEach(
+                                        function (campo) {
+                                            campo.disabled = !seleccionado;
+                                        }
+                                    );
+                                }
+                            );
+                        }
+                    );
+                }
+
+
+                /*
+                |--------------------------------------------------------------------------
                 | FILTRADO INICIAL
                 |--------------------------------------------------------------------------
                 */

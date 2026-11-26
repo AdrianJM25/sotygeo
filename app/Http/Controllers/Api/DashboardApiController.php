@@ -13,6 +13,17 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardApiController extends Controller
 {
+    /** 
+    * Consulta los vehículos visibles para el usuario y obtiene
+    * la última ubicación GPS registrada de cada unidad.
+    *
+    * Entrada:
+    * @param Request $request Solicitud realizada al servicio interno.
+    *
+    * Salida:
+    * @return \Illuminate\Http\JsonResponse
+    *         Lista de vehículos con su última ubicación y estado de conexión.
+    */
     /*
     |--------------------------------------------------------------------------
     | VEHÍCULOS EN VIVO

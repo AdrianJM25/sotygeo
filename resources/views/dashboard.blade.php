@@ -543,6 +543,140 @@
     >
 
         {{-- ====================================================== --}}
+        {{-- IDENTIFICACIÓN DEL DASHBOARD SEGÚN EL ROL --}}
+        {{-- ====================================================== --}}
+
+        @php
+            $usuarioDashboard = auth()->user();
+
+            $rolDashboard =
+                $usuarioDashboard
+                    ->getRoleNames()
+                    ->first()
+                ?? 'Usuario';
+
+            $descripcionDashboard = match ($rolDashboard) {
+
+                'Super Administrador' =>
+                    'Vista general de la plataforma, empresas y operación de SotyGeo.',
+
+                'Administrador de Empresa' =>
+                    'Supervisa la operación, vehículos y recursos de tu empresa.',
+
+                'Gestor de flotilla' =>
+                    'Monitorea vehículos, conductores y la operación de tus flotillas.',
+
+                'Conductor',
+                'Chofer' =>
+                    'Consulta tu unidad, actividad, historial y notificaciones.',
+
+                'Cliente Individual' =>
+                    'Monitorea tu vehículo y consulta su actividad reciente.',
+
+                default =>
+                    'Consulta la información disponible para tu cuenta en SotyGeo.',
+            };
+
+            $iconoDashboard = match ($rolDashboard) {
+
+                'Super Administrador' =>
+                    'admin_panel_settings',
+
+                'Administrador de Empresa' =>
+                    'apartment',
+
+                'Gestor de flotilla' =>
+                    'local_shipping',
+
+                'Conductor',
+                'Chofer' =>
+                    'badge',
+
+                'Cliente Individual' =>
+                    'person_pin_circle',
+
+                default =>
+                    'dashboard',
+            };
+        @endphp
+
+
+        <div
+            class="shrink-0
+                   bg-white
+                   border border-slate-200
+                   rounded-2xl
+                   shadow-sm
+                   px-5 py-4
+                   flex items-center
+                   justify-between
+                   gap-4"
+        >
+
+            <div class="min-w-0">
+
+                <p
+                    class="text-sm
+                           text-slate-500
+                           font-ubuntu"
+                >
+                    ¡Hola,
+                    <span class="font-medium text-slate-700">
+                        {{ $usuarioDashboard->nombre }}
+                    </span>!
+                    👋
+                </p>
+
+
+                <h1
+                    class="mt-0.5
+                           text-xl
+                           md:text-2xl
+                           font-bold
+                           text-[#0056b3]
+                           font-josefin"
+                >
+                    Dashboard de {{ $rolDashboard }}
+                </h1>
+
+
+                <p
+                    class="mt-1
+                           text-xs
+                           md:text-sm
+                           text-slate-400
+                           truncate"
+                >
+                    {{ $descripcionDashboard }}
+                </p>
+
+            </div>
+
+
+            <div
+                class="hidden sm:flex
+                       w-12 h-12
+                       shrink-0
+                       items-center
+                       justify-center
+                       rounded-xl
+                       border border-blue-100
+                       bg-blue-50
+                       text-[#0056b3]"
+            >
+                <span
+                    class="material-symbols-rounded
+                           text-[26px]"
+                >
+                    {{ $iconoDashboard }}
+                </span>
+            </div>
+
+        </div>
+
+
+
+        {{-- ====================================================== --}}
         {{-- KPIs --}}
         {{-- ====================================================== --}}
 

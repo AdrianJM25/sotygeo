@@ -1,55 +1,80 @@
-<section class="space-y-6">
+<section>
+
     <header>
-        <h2 class="text-lg font-medium text-gray-900">
-            {{ __('Delete Account') }}
+        <h2 class="text-lg font-semibold text-gray-900">
+            Eliminar cuenta
         </h2>
 
-        <p class="mt-1 text-sm text-gray-600">
-            {{ __('Once your account is deleted, all of its resources and data will be permanently deleted. Before deleting your account, please download any data or information that you wish to retain.') }}
+        <p class="mt-1 text-sm leading-relaxed text-gray-500">
+            Al eliminar tu cuenta, la información asociada se eliminará de forma permanente.
+            Esta acción no se puede deshacer.
         </p>
     </header>
 
-    <x-danger-button
-        x-data=""
-        x-on:click.prevent="$dispatch('open-modal', 'confirm-user-deletion')"
-    >{{ __('Delete Account') }}</x-danger-button>
 
-    <x-modal name="confirm-user-deletion" :show="$errors->userDeletion->isNotEmpty()" focusable>
-        <form method="post" action="{{ route('profile.destroy') }}" class="p-6">
-            @csrf
-            @method('delete')
+    <form
+        method="POST"
+        action="{{ route('profile.destroy') }}"
+        class="mt-6"
+        onsubmit="
+            return confirm(
+                '¿Estás seguro de que deseas eliminar tu cuenta? Esta acción no se puede deshacer.'
+            );
+        "
+    >
+        @csrf
+        @method('DELETE')
 
-            <h2 class="text-lg font-medium text-gray-900">
-                {{ __('Are you sure you want to delete your account?') }}
-            </h2>
 
-            <p class="mt-1 text-sm text-gray-600">
-                {{ __('Once your account is deleted, all of its resources and data will be permanently deleted. Please enter your password to confirm you would like to permanently delete your account.') }}
-            </p>
+        <div class="max-w-md">
 
-            <div class="mt-6">
-                <x-input-label for="password" value="{{ __('Password') }}" class="sr-only" />
+            <label
+                for="delete_account_password"
+                class="block text-sm font-medium text-gray-700 mb-1"
+            >
+                Confirma tu contraseña
+            </label>
 
-                <x-text-input
-                    id="password"
-                    name="password"
-                    type="password"
-                    class="mt-1 block w-3/4"
-                    placeholder="{{ __('Password') }}"
-                />
+            <input
+                id="delete_account_password"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                placeholder="Ingresa tu contraseña actual"
+                class="w-full rounded-xl border-gray-300
+                       focus:border-red-500
+                       focus:ring-red-500"
+            >
 
-                <x-input-error :messages="$errors->userDeletion->get('password')" class="mt-2" />
-            </div>
+            <x-input-error
+                :messages="$errors->userDeletion->get('password')"
+                class="mt-2"
+            />
 
-            <div class="mt-6 flex justify-end">
-                <x-secondary-button x-on:click="$dispatch('close')">
-                    {{ __('Cancel') }}
-                </x-secondary-button>
+        </div>
 
-                <x-danger-button class="ms-3">
-                    {{ __('Delete Account') }}
-                </x-danger-button>
-            </div>
-        </form>
-    </x-modal>
+
+        <button
+            type="submit"
+            class="mt-4 inline-flex
+                   items-center gap-2
+                   rounded-xl bg-red-600
+                   px-4 py-2.5
+                   text-sm font-medium
+                   text-white
+                   transition-colors
+                   hover:bg-red-700"
+        >
+            <span
+                class="material-symbols-rounded
+                       text-[18px]"
+            >
+                delete_forever
+            </span>
+
+            Eliminar cuenta
+        </button>
+
+    </form>
+
 </section>

@@ -26,31 +26,26 @@ class Empresa extends Model
         ];
     }
 
-    // Relación: Una empresa agrupa a múltiples usuarios (empleados y gerentes)
     public function usuarios()
     {
         return $this->hasMany(User::class);
     }
 
-    // NUEVO: Relación directa con vehículos (reemplaza a los activos)
     public function vehiculos()
     {
         return $this->hasMany(Vehiculo::class);
     }
 
-    // Relación: Una empresa tiene múltiples dispositivos físicos asignados
     public function dispositivos()
     {
         return $this->hasMany(Dispositivo::class);
     }
 
-    // Relación: Una empresa puede organizar sus vehículos en múltiples flotillas
     public function flotillas()
     {
         return $this->hasMany(Flotilla::class);
     }
 
-    // Relación: Una empresa tiene sus propias geocercas/zonas
     public function zonas()
     {
         return $this->hasMany(Zona::class);

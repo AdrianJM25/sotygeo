@@ -844,57 +844,271 @@
 
         @can('gestionar reportes')
 
-            <a
-                href="{{ route('reportes.kilometraje') }}"
-
-                class="nav-item-in group
-                    flex items-center
-                    px-2.5 py-2.5
-                    rounded-xl
-                    transition-all
-                    {{ request()->routeIs('reportes.*')
-                        ? 'bg-[#56928C]/10'
-                        : 'hover:bg-gray-50'
-                    }}"
+            <details
+                class="nav-item-in group/reportes"
+                {{ request()->routeIs('reportes.*') ? 'open' : '' }}
             >
 
-                <span
-                    class="w-10 h-10
-                        flex items-center justify-center
+                {{-- ============================================== --}}
+                {{-- BOTÓN PRINCIPAL REPORTES --}}
+                {{-- ============================================== --}}
+
+                <summary
+                    class="group
+                        flex items-center
+                        w-full
+                        px-2.5 py-2.5
                         rounded-xl
                         transition-all
-                        shrink-0
+                        cursor-pointer
+                        list-none
+                        [&::-webkit-details-marker]:hidden
                         {{ request()->routeIs('reportes.*')
-                            ? 'bg-[#56928C] text-white shadow-md shadow-[#56928C]/30'
-                            : 'bg-transparent text-[#56928C] group-hover:bg-[#56928C]/10'
+                            ? 'bg-[#56928C]/10'
+                            : 'hover:bg-gray-50'
                         }}"
                 >
 
-                    <span class="material-symbols-rounded">
-                        analytics
+                    <span
+                        class="w-10 h-10
+                            flex items-center justify-center
+                            rounded-xl
+                            transition-all
+                            shrink-0
+                            {{ request()->routeIs('reportes.*')
+                                ? 'bg-[#56928C] text-white shadow-md shadow-[#56928C]/30'
+                                : 'bg-transparent text-[#56928C] group-hover:bg-[#56928C]/10'
+                            }}"
+                    >
+
+                        <span class="material-symbols-rounded">
+                            analytics
+                        </span>
+
                     </span>
 
-                </span>
+
+                    <span
+                        x-show="!sidebarMini"
+                        x-transition.opacity
+
+                        class="ml-3
+                            flex-1
+                            text-left
+                            text-[15px]
+                            whitespace-nowrap
+                            {{ request()->routeIs('reportes.*')
+                                ? 'text-[#3A6B66] font-bold'
+                                : 'text-gray-600 font-medium group-hover:text-[#56928C]'
+                            }}"
+                    >
+                        Reportes
+                    </span>
 
 
-                <span
+                    <span
+                        x-show="!sidebarMini"
+
+                        class="material-symbols-rounded
+                            text-[20px]
+                            text-gray-400
+                            transition-transform
+                            duration-200
+                            group-open/reportes:rotate-180"
+                    >
+                        expand_more
+                    </span>
+
+                </summary>
+
+
+                {{-- ============================================== --}}
+                {{-- SUBMENÚ --}}
+                {{-- ============================================== --}}
+
+                <div
                     x-show="!sidebarMini"
-                    x-transition.opacity
 
-                    class="ml-3 text-[15px]
-                        whitespace-nowrap
-                        {{ request()->routeIs('reportes.*')
-                            ? 'text-[#3A6B66] font-bold'
-                            : 'text-gray-600 font-medium group-hover:text-[#56928C]'
-                        }}"
+                    class="mt-1
+                        ml-5
+                        pl-3
+                        space-y-1
+                        border-l-2
+                        border-[#56928C]/15"
                 >
-                    Reportes
-                </span>
 
-            </a>
+                    {{-- FN.15 - KILOMETRAJE --}}
+
+                    <a
+                        href="{{ route('reportes.kilometraje') }}"
+
+                        class="flex items-center
+                            gap-2.5
+                            px-3 py-2
+                            rounded-lg
+                            text-sm
+                            transition-all
+                            {{ request()->routeIs('reportes.kilometraje*')
+                                ? 'bg-[#56928C]/10 text-[#3A6B66] font-semibold'
+                                : 'text-gray-500 hover:bg-gray-50 hover:text-[#56928C]'
+                            }}"
+                    >
+
+                        <span class="material-symbols-rounded text-[18px]">
+                            route
+                        </span>
+
+                        <span class="whitespace-nowrap">
+                            Kilometraje
+                        </span>
+
+                    </a>
+
+
+                    {{-- FN.16 - ALERTAS --}}
+
+                    <a
+                        href="{{ route('reportes.alertas') }}"
+
+                        class="flex items-center
+                            gap-2.5
+                            px-3 py-2
+                            rounded-lg
+                            text-sm
+                            transition-all
+                            {{ request()->routeIs('reportes.alertas*')
+                                ? 'bg-[#56928C]/10 text-[#3A6B66] font-semibold'
+                                : 'text-gray-500 hover:bg-gray-50 hover:text-[#56928C]'
+                            }}"
+                    >
+
+                        <span class="material-symbols-rounded text-[18px]">
+                            warning
+                        </span>
+
+                        <span class="whitespace-nowrap">
+                            Alertas y velocidad
+                        </span>
+
+                    </a>
+
+
+                    {{-- FN.17 - ZONAS --}}
+
+                    <a
+                        href="{{ route('reportes.zonas') }}"
+
+                        class="flex items-center
+                            gap-2.5
+                            px-3 py-2
+                            rounded-lg
+                            text-sm
+                            transition-all
+                            {{ request()->routeIs('reportes.zonas*')
+                                ? 'bg-[#56928C]/10 text-[#3A6B66] font-semibold'
+                                : 'text-gray-500 hover:bg-gray-50 hover:text-[#56928C]'
+                            }}"
+                    >
+
+                        <span class="material-symbols-rounded text-[18px]">
+                            location_on
+                        </span>
+
+                        <span class="whitespace-nowrap">
+                            Visitas en zonas
+                        </span>
+
+                    </a>
+
+
+                    {{-- FN.18 - INSPECCIONES --}}
+
+                    <a
+                        href="{{ route('reportes.inspecciones') }}"
+
+                        class="flex items-center
+                            gap-2.5
+                            px-3 py-2
+                            rounded-lg
+                            text-sm
+                            transition-all
+                            {{ request()->routeIs('reportes.inspecciones*')
+                                ? 'bg-[#56928C]/10 text-[#3A6B66] font-semibold'
+                                : 'text-gray-500 hover:bg-gray-50 hover:text-[#56928C]'
+                            }}"
+                    >
+
+                        <span class="material-symbols-rounded text-[18px]">
+                            fact_check
+                        </span>
+
+                        <span class="whitespace-nowrap">
+                            Inspecciones
+                        </span>
+
+                    </a>
+
+
+                    {{-- FN.19 - FLOTILLA --}}
+
+                    <a
+                        href="{{ route('reportes.flotillas') }}"
+
+                        class="flex items-center
+                            gap-2.5
+                            px-3 py-2
+                            rounded-lg
+                            text-sm
+                            transition-all
+                            {{ request()->routeIs('reportes.flotillas*')
+                                ? 'bg-[#56928C]/10 text-[#3A6B66] font-semibold'
+                                : 'text-gray-500 hover:bg-gray-50 hover:text-[#56928C]'
+                            }}"
+                    >
+
+                        <span class="material-symbols-rounded text-[18px]">
+                            local_shipping
+                        </span>
+
+                        <span class="whitespace-nowrap">
+                            Utilización de flotilla
+                        </span>
+
+                    </a>
+
+
+                    {{-- FN.20 - CONDUCTORES --}}
+
+                    <a
+                        href="{{ route('reportes.conductores') }}"
+
+                        class="flex items-center
+                            gap-2.5
+                            px-3 py-2
+                            rounded-lg
+                            text-sm
+                            transition-all
+                            {{ request()->routeIs('reportes.conductores*')
+                                ? 'bg-[#56928C]/10 text-[#3A6B66] font-semibold'
+                                : 'text-gray-500 hover:bg-gray-50 hover:text-[#56928C]'
+                            }}"
+                    >
+
+                        <span class="material-symbols-rounded text-[18px]">
+                            badge
+                        </span>
+
+                        <span class="whitespace-nowrap">
+                            Actividad por conductor
+                        </span>
+
+                    </a>
+
+                </div>
+
+            </details>
 
         @endcan
-
         {{-- ================================================== --}}
         {{-- ENLACES DE SEGUIMIENTO --}}
         {{-- ================================================== --}}
@@ -951,7 +1165,63 @@
             </a>
 
         @endcan
+        {{-- ================================================== --}}
+        {{-- RESPALDO DE BASE DE DATOS --}}
+        {{-- SOLO SUPER ADMINISTRADOR --}}
+        {{-- ================================================== --}}
 
+        @if(auth()->user() && auth()->user()->hasRole('Super Administrador'))
+
+            <a
+                href="{{ route('backups.index') }}"
+
+                class="nav-item-in group
+                    flex items-center
+                    px-2.5 py-2.5
+                    rounded-xl
+                    transition-all
+                    {{ request()->routeIs('backups.*')
+                        ? 'bg-[#56928C]/10'
+                        : 'hover:bg-gray-50'
+                    }}"
+            >
+
+                <span
+                    class="w-10 h-10
+                        flex items-center justify-center
+                        rounded-xl
+                        transition-all
+                        shrink-0
+                        {{ request()->routeIs('backups.*')
+                            ? 'bg-[#56928C] text-white shadow-md shadow-[#56928C]/30'
+                            : 'bg-transparent text-[#56928C] group-hover:bg-[#56928C]/10'
+                        }}"
+                >
+
+                    <span class="material-symbols-rounded">
+                        database
+                    </span>
+
+                </span>
+
+
+                <span
+                    x-show="!sidebarMini"
+                    x-transition.opacity
+
+                    class="ml-3 text-[15px]
+                        whitespace-nowrap
+                        {{ request()->routeIs('backups.*')
+                            ? 'text-[#3A6B66] font-bold'
+                            : 'text-gray-600 font-medium group-hover:text-[#56928C]'
+                        }}"
+                >
+                    Respaldos
+                </span>
+
+            </a>
+
+        @endif
 
     </nav>
 

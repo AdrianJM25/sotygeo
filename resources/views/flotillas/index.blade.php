@@ -1,6 +1,17 @@
 <x-app-layout>
 
-    <div class="space-y-5">
+    <style>
+        .font-heading {
+            font-family: 'Josefin Sans', sans-serif;
+        }
+
+        .font-body {
+            font-family: 'Ubuntu', sans-serif;
+        }
+    </style>
+
+
+    <div class="space-y-5 font-body">
 
         {{-- MENSAJE DE ÉXITO --}}
         @if(session('success'))
@@ -19,53 +30,39 @@
         {{-- TARJETA PRINCIPAL --}}
         <div
             class="overflow-hidden rounded-2xl
-                   border border-gray-200 bg-white shadow-sm"
+                   border border-[#0056b3]/20 bg-white
+                   shadow-sm shadow-black/5"
         >
 
             {{-- CABECERA --}}
             <div
-                class="flex flex-col gap-3 border-b
-                       border-gray-100 p-4
-                       sm:flex-row sm:items-center
-                       sm:justify-between"
+                class="flex flex-col gap-4
+                       bg-[#0056b3] p-5 sm:p-6
+                       lg:flex-row lg:items-center
+                       lg:justify-between"
             >
 
-                <div class="flex items-center gap-3">
+                <div>
 
-                    <div
-                        class="flex h-10 w-10 items-center
-                               justify-center rounded-xl
-                               bg-indigo-500 text-white"
+                    <h2
+                        class="font-heading text-xl
+                               font-semibold tracking-tight
+                               text-white sm:text-2xl"
                     >
+                        Gestión de flotillas
+                    </h2>
 
-                        <span class="material-symbols-rounded">
-                            local_shipping
-                        </span>
-
-                    </div>
-
-                    <div>
-
-                        <h2
-                            class="text-lg font-bold
-                                   text-gray-900"
-                        >
-                            Gestión de Flotillas
-                        </h2>
-
-                        <p class="text-xs text-gray-400">
-                            {{ $flotillas->total() }}
-                            flotilla(s) registrada(s)
-                        </p>
-
-                    </div>
+                    <p class="mt-1 text-sm text-blue-100">
+                        Administra los grupos de vehículos y su organización operativa.
+                    </p>
 
                 </div>
 
 
                 <div
-                    class="flex w-full items-center
-                           gap-2 sm:w-auto"
+                    class="flex w-full flex-col gap-2
+                           sm:flex-row sm:items-center
+                           lg:w-auto"
                 >
 
                     <form
@@ -74,22 +71,47 @@
                         class="flex flex-1 gap-2"
                     >
 
-                        <input
-                            type="text"
-                            name="buscar"
-                            value="{{ request('buscar') }}"
-                            placeholder="Buscar flotilla..."
-                            class="w-full rounded-lg
-                                   border-gray-300 bg-gray-50
-                                   text-sm focus:border-indigo-500
-                                   focus:ring-indigo-500 sm:w-64"
-                        >
+                        <div class="relative flex-1 sm:w-64">
+
+                            <span
+                                class="absolute inset-y-0 left-0
+                                       flex items-center pl-3
+                                       text-[#0056b3]/70"
+                            >
+                                <span
+                                    class="material-symbols-rounded
+                                           text-[18px]"
+                                >
+                                    search
+                                </span>
+                            </span>
+
+                            <input
+                                type="text"
+                                name="buscar"
+                                value="{{ request('buscar') }}"
+                                placeholder="Buscar flotilla..."
+                                class="w-full rounded-xl
+                                       border-white/80 bg-white
+                                       py-2.5 pl-9 pr-3 text-sm
+                                       text-gray-700 shadow-sm
+                                       placeholder:text-gray-400
+                                       focus:border-white
+                                       focus:ring-2 focus:ring-white"
+                            >
+
+                        </div>
+
 
                         <button
                             type="submit"
-                            class="rounded-lg border border-gray-300
-                                   bg-white px-3 py-2 text-sm
-                                   text-gray-600 hover:bg-gray-50"
+                            class="rounded-xl border
+                                   border-white/80 bg-white
+                                   px-4 py-2.5 text-sm
+                                   font-medium text-[#0056b3]
+                                   shadow-sm transition-all
+                                   hover:bg-blue-50
+                                   active:scale-[0.98]"
                         >
                             Buscar
                         </button>
@@ -99,17 +121,24 @@
 
                     <a
                         href="{{ route('flotillas.create') }}"
-                        class="inline-flex shrink-0 items-center
-                               gap-2 rounded-lg bg-gray-900
-                               px-4 py-2 text-sm font-medium
-                               text-white transition hover:bg-gray-800"
+                        class="inline-flex shrink-0
+                               items-center justify-center
+                               gap-2 rounded-xl bg-white
+                               px-4 py-2.5 text-sm
+                               font-medium text-[#0056b3]
+                               shadow-sm shadow-black/20
+                               transition-all hover:bg-blue-50
+                               active:scale-[0.98]"
                     >
 
-                        <span class="material-symbols-rounded text-[18px]">
+                        <span
+                            class="material-symbols-rounded
+                                   text-[20px]"
+                        >
                             add
                         </span>
 
-                        Nueva Flotilla
+                        Nueva flotilla
 
                     </a>
 
@@ -123,34 +152,34 @@
 
                 <table
                     class="w-full text-left
-                           text-sm text-gray-600"
+                           text-sm text-gray-700"
                 >
 
                     <thead
-                        class="border-b border-gray-200
-                               bg-gray-50 text-xs uppercase
-                               text-gray-500"
+                        class="border-b border-[#0056b3]/15
+                               bg-blue-50/60 text-xs
+                               text-[#0056b3]"
                     >
 
                         <tr>
 
-                            <th class="px-6 py-4">
+                            <th class="px-6 py-4 font-semibold">
                                 Flotilla / Empresa
                             </th>
 
-                            <th class="px-6 py-4">
+                            <th class="px-6 py-4 font-semibold">
                                 Descripción
                             </th>
 
-                            <th class="px-6 py-4">
+                            <th class="px-6 py-4 font-semibold">
                                 Responsable
                             </th>
 
-                            <th class="px-6 py-4">
+                            <th class="px-6 py-4 font-semibold">
                                 Vehículos
                             </th>
 
-                            <th class="px-6 py-4 text-right">
+                            <th class="px-6 py-4 font-semibold text-right">
                                 Acciones
                             </th>
 
@@ -159,18 +188,18 @@
                     </thead>
 
 
-                    <tbody class="divide-y divide-gray-100">
+                    <tbody class="divide-y divide-[#0056b3]/10">
 
                         @forelse($flotillas as $flotilla)
 
-                            <tr class="hover:bg-gray-50">
+                            <tr class="transition-colors hover:bg-blue-50/30">
 
                                 {{-- FLOTILLA --}}
                                 <td class="px-6 py-4">
 
                                     <div
                                         class="font-medium
-                                               text-gray-900"
+                                               text-[#003d82]"
                                     >
                                         {{ $flotilla->nombre }}
                                     </div>
@@ -179,7 +208,7 @@
                                         class="mt-1 text-[10px]
                                                font-semibold uppercase
                                                tracking-wider
-                                               text-gray-400"
+                                               text-gray-500"
                                     >
 
                                         {{
@@ -214,11 +243,11 @@
                                     @if($flotilla->usuario)
 
                                         <span
-                                            class="inline-flex rounded-md
-                                                   border border-blue-100
-                                                   bg-blue-50 px-2 py-1
+                                            class="inline-flex rounded-lg
+                                                   border border-[#0056b3]/15
+                                                   bg-[#0056b3]/10 px-2 py-1
                                                    text-xs font-medium
-                                                   text-blue-700"
+                                                   text-[#003d82]"
                                         >
 
                                             {{ $flotilla->usuario->nombre }}
@@ -246,7 +275,7 @@
 
                                     <span
                                         class="font-semibold
-                                               text-gray-900"
+                                               text-[#003d82]"
                                     >
                                         {{ $flotilla->vehiculos->count() }}
                                     </span>
@@ -276,8 +305,9 @@
                                             title="Ver detalles"
                                             class="rounded-lg p-2
                                                    text-gray-500
-                                                   hover:bg-gray-100
-                                                   hover:text-gray-900"
+                                                   transition-colors
+                                                   hover:bg-[#0056b3]/10
+                                                   hover:text-[#0056b3]"
                                         >
 
                                             <span
@@ -298,9 +328,10 @@
                                             ) }}"
                                             title="Editar"
                                             class="rounded-lg p-2
-                                                   text-blue-500
-                                                   hover:bg-blue-50
-                                                   hover:text-blue-700"
+                                                   text-[#0056b3]
+                                                   transition-colors
+                                                   hover:bg-[#0056b3]/10
+                                                   hover:text-[#003d82]"
                                         >
 
                                             <span
@@ -373,7 +404,7 @@
 
                                         <span
                                             class="material-symbols-rounded
-                                                   text-5xl text-gray-300"
+                                                   text-5xl text-[#0056b3]/30"
                                         >
                                             local_shipping
                                         </span>
@@ -390,7 +421,9 @@
                                                 'flotillas.create'
                                             ) }}"
                                             class="text-sm font-medium
-                                                   text-gray-900 underline"
+                                                   text-[#0056b3] underline
+                                                   underline-offset-2
+                                                   hover:text-[#003d82]"
                                         >
                                             Crear la primera flotilla
                                         </a>
@@ -413,8 +446,8 @@
             @if($flotillas->hasPages())
 
                 <div
-                    class="border-t border-gray-100
-                           p-4"
+                    class="border-t border-[#0056b3]/15
+                           bg-white p-4"
                 >
                     {{ $flotillas->links() }}
                 </div>

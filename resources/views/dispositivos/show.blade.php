@@ -1,29 +1,18 @@
 <div
-    x-show="openShow"
-    style="display: none;"
-    class="fixed inset-0 z-[200]
-           flex items-center justify-center
-           p-4 text-left"
+    id="gps-show-{{ $dispositivo->id }}"
+    class="gps-modal fixed inset-0 z-[200] items-center justify-center p-4 text-left"
+    aria-hidden="true"
 >
 
     {{-- FONDO --}}
     <div
-        x-show="openShow"
-        x-transition.opacity
-        @click="openShow = false"
+        data-close-gps-modal
         class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm"
     ></div>
 
 
     {{-- MODAL --}}
     <div
-        x-show="openShow"
-        x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="opacity-0 translate-y-8 sm:scale-95"
-        x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-        x-transition:leave="transition ease-in duration-200"
-        x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-        x-transition:leave-end="opacity-0 translate-y-8 sm:scale-95"
         class="relative z-[201]
                w-full max-w-xl
                overflow-hidden rounded-2xl
@@ -52,7 +41,7 @@
 
             <button
                 type="button"
-                @click="openShow = false"
+                data-close-gps-modal
                 class="rounded-lg p-2 text-gray-500
                        transition-colors
                        hover:bg-blue-50 hover:text-[#0056b3]"
@@ -314,7 +303,7 @@
 
             <button
                 type="button"
-                @click="openShow = false"
+                data-close-gps-modal
                 class="rounded-xl border border-gray-300
                        bg-white px-5 py-2.5
                        text-sm font-medium text-gray-700

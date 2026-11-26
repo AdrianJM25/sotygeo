@@ -1,11 +1,6 @@
 <x-app-layout>
 
-    <div
-        x-data="{
-            openCreate: {{ $errors->any() && !old('is_edit') ? 'true' : 'false' }}
-        }"
-        class="font-['Ubuntu']"
-    >
+    <div class="font-['Ubuntu']">
 
         <div
             class="overflow-hidden rounded-2xl
@@ -35,7 +30,7 @@
 
                 <button
                     type="button"
-                    @click="openCreate = true"
+                    data-open-gps-modal="gps-create-modal"
                     class="inline-flex items-center justify-center gap-2
                            rounded-xl bg-white px-4 py-2.5
                            text-sm font-medium text-[#0056b3]
@@ -161,14 +156,7 @@
 
                         @forelse($dispositivos as $dispositivo)
 
-                            <tr
-                                x-data="{
-                                    openEdit:
-                                        {{ $errors->any() && old('is_edit') == $dispositivo->id ? 'true' : 'false' }},
-                                    openShow: false
-                                }"
-                                class="bg-white transition-colors hover:bg-blue-50/30"
-                            >
+                            <tr class="bg-white transition-colors hover:bg-blue-50/30">
 
                                 {{-- IMEI --}}
                                 <td class="px-6 py-4">
@@ -386,7 +374,7 @@
                                         {{-- VER --}}
                                         <button
                                             type="button"
-                                            @click="openShow = true"
+                                            data-open-gps-modal="gps-show-{{ $dispositivo->id }}"
                                             title="Ver detalles"
                                             class="rounded-lg p-2 text-gray-500
                                                    transition-colors
@@ -402,7 +390,7 @@
                                         {{-- EDITAR --}}
                                         <button
                                             type="button"
-                                            @click="openEdit = true"
+                                            data-open-gps-modal="gps-edit-{{ $dispositivo->id }}"
                                             title="Editar GPS"
                                             class="rounded-lg p-2 text-gray-500
                                                    transition-colors
@@ -544,5 +532,208 @@
         )
 
     </div>
+
+
+    <style>
+        .gps-modal {
+            display: none;
+        }
+
+        .gps-modal.is-open {
+            display: flex !important;
+        }
+    </style>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+
+            function abrirGpsModal(id) {
+                const modal = document.getElementById(id);
+
+                if (!modal) {
+                    return;
+                }
+
+                document
+                    .querySelectorAll('.gps-modal.is-open')
+                    .forEach(function (abierto) {
+                        abierto.classList.remove('is-open');
+                        abierto.setAttribute('aria-hidden', 'true');
+                    });
+
+                modal.classList.add('is-open');
+                modal.setAttribute('aria-hidden', 'false');
+
+                document.body.style.overflow = 'hidden';
+            }
+
+
+            function cerrarGpsModal(modal) {
+                if (!modal) {
+                    return;
+                }
+
+                modal.classList.remove('is-open');
+                modal.setAttribute('aria-hidden', 'true');
+
+                if (!document.querySelector('.gps-modal.is-open')) {
+                    document.body.style.overflow = '';
+                }
+            }
+
+
+            document
+                .querySelectorAll('[data-open-gps-modal]')
+                .forEach(function (boton) {
+                    boton.addEventListener('click', function () {
+                        abrirGpsModal(
+                            boton.dataset.openGpsModal
+                        );
+                    });
+                });
+
+
+            document
+                .querySelectorAll('[data-close-gps-modal]')
+                .forEach(function (boton) {
+                    boton.addEventListener('click', function () {
+                        cerrarGpsModal(
+                            boton.closest('.gps-modal')
+                        );
+                    });
+                });
+
+
+            document.addEventListener('keydown', function (event) {
+                if (event.key !== 'Escape') {
+                    return;
+                }
+
+                document
+                    .querySelectorAll('.gps-modal.is-open')
+                    .forEach(cerrarGpsModal);
+            });
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | PROPIETARIO AL REGISTRAR GPS
+            |--------------------------------------------------------------------------
+            */
+
+            const propietarioCreate =
+                document.getElementById('gps-create-owner');
+
+            if (propietarioCreate) {
+
+                const radios =
+                    propietarioCreate.querySelectorAll(
+                        '[data-gps-owner-type]'
+                    );
+
+                const seccionEmpresa =
+                    propietarioCreate.querySelector(
+                        '[data-gps-owner-section="empresa"]'
+                    );
+
+                const seccionCliente =
+                    propietarioCreate.querySelector(
+                        '[data-gps-owner-section="particular"]'
+                    );
+
+                const selectEmpresa =
+                    seccionEmpresa
+                        ?.querySelector('select[name="empresa_id"]');
+
+                const selectCliente =
+                    seccionCliente
+                        ?.querySelector('select[name="user_id"]');
+
+
+                function actualizarPropietario(tipo) {
+
+                    if (seccionEmpresa) {
+                        seccionEmpresa.classList.toggle(
+                            'hidden',
+                            tipo !== 'empresa'
+                        );
+                    }
+
+                    if (seccionCliente) {
+                        seccionCliente.classList.toggle(
+                            'hidden',
+                            tipo !== 'particular'
+                        );
+                    }
+
+                    if (selectEmpresa) {
+                        selectEmpresa.disabled =
+                            tipo !== 'empresa';
+
+                        if (tipo !== 'empresa') {
+                            selectEmpresa.value = '';
+                        }
+                    }
+
+                    if (selectCliente) {
+                        selectCliente.disabled =
+                            tipo !== 'particular';
+
+                        if (tipo !== 'particular') {
+                            selectCliente.value = '';
+                        }
+                    }
+                }
+
+
+                radios.forEach(function (radio) {
+
+                    radio.addEventListener(
+                        'change',
+                        function () {
+
+                            if (radio.checked) {
+                                actualizarPropietario(
+                                    radio.value
+                                );
+                            }
+                        }
+                    );
+                });
+
+
+                const seleccionado =
+                    propietarioCreate.querySelector(
+                        '[data-gps-owner-type]:checked'
+                    );
+
+                actualizarPropietario(
+                    seleccionado
+                        ? seleccionado.value
+                        : 'stock'
+                );
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | REABRIR MODAL CUANDO HAY ERRORES DE VALIDACIÓN
+            |--------------------------------------------------------------------------
+            */
+
+            @if($errors->any())
+                @if(old('is_edit'))
+                    abrirGpsModal(
+                        'gps-edit-{{ (int) old('is_edit') }}'
+                    );
+                @else
+                    abrirGpsModal(
+                        'gps-create-modal'
+                    );
+                @endif
+            @endif
+
+        });
+    </script>
 
 </x-app-layout>
