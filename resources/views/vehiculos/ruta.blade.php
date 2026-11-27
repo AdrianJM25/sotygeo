@@ -878,483 +878,676 @@
 
                 /*
                 |--------------------------------------------------------------------------
-                | DATOS
+                | DATOS DEL CONTROLADOR
                 |--------------------------------------------------------------------------
+                |
+                | La geometría de OSRM y los registros GPS se reciben por separado.
+                | Así no confundimos los vértices de las calles con los reportes GPS.
+                |
                 */
 
                 const ubicaciones =
                     @json($ubicaciones->values());
 
                 const rutaServidor =
-                    @json($rutaAjustada);
+                    @json($rutaAjustada ?? []);
+
+                const segmentosRutaServidor =
+                    @json($segmentosRuta ?? []);
+
+                const segmentosReproduccionServidor =
+                    @json($segmentosReproduccion ?? []);
+
+                const puntosReproduccionServidor =
+                    @json($puntosReproduccion ?? []);
+
+                const modoRuta =
+                    @json($modoRuta ?? 'gps');
 
 
                 /*
                 |--------------------------------------------------------------------------
-                | RUTA VISUAL
+                | FUNCIONES DE VALIDACIÓN Y CONVERSIÓN
                 |--------------------------------------------------------------------------
                 */
 
-                let ruta = [];
+                function numeroValido(valor)
+                {
+                    const numero = Number(valor);
 
-
-                if (
-                    Array.isArray(rutaServidor)
-                    &&
-                    rutaServidor.length > 0
-                ) {
-
-                    ruta =
-                        rutaServidor.map(
-                            punto => [
-
-                                parseFloat(
-                                    punto[0]
-                                ),
-
-                                parseFloat(
-                                    punto[1]
-                                )
-                            ]
-                        );
-
-                } else {
-
-                    ruta =
-                        ubicaciones.map(
-                            punto => [
-
-                                parseFloat(
-                                    punto.latitud
-                                ),
-
-                                parseFloat(
-                                    punto.longitud
-                                )
-                            ]
-                        );
+                    return Number.isFinite(numero)
+                        ? numero
+                        : null;
                 }
 
 
-                /*
-                |--------------------------------------------------------------------------
-                | MAPA
-                |--------------------------------------------------------------------------
-                */
-
-                let latInicial =
-                    19.4326;
-
-                let lonInicial =
-                    -99.1332;
-
-
-                if (ruta.length > 0) {
-
-                    latInicial =
-                        ruta[0][0];
-
-                    lonInicial =
-                        ruta[0][1];
-                }
-
-
-                const map =
-                    L.map(
-                        'mapa-historial'
-                    )
-                    .setView(
-                        [
-                            latInicial,
-                            lonInicial
-                        ],
-                        13
-                    );
-
-
-                L.tileLayer(
-                    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    {
-                        maxZoom:
-                            19,
-
-                        attribution:
-                            '&copy; OpenStreetMap contributors'
+                function coordenadaValida(punto)
+                {
+                    if (
+                        !Array.isArray(punto)
+                        || punto.length < 2
+                    ) {
+                        return false;
                     }
-                )
-                .addTo(map);
 
+                    const latitud = numeroValido(punto[0]);
+                    const longitud = numeroValido(punto[1]);
 
-                /*
-                |--------------------------------------------------------------------------
-                | ELEMENTOS
-                |--------------------------------------------------------------------------
-                */
-
-                const barra =
-                    document.getElementById(
-                        'barra-progreso'
-                    );
-
-                const btnPlay =
-                    document.getElementById(
-                        'btn-reproducir'
-                    );
-
-                const btnInicio =
-                    document.getElementById(
-                        'btn-reiniciar'
-                    );
-
-                const btnAnterior =
-                    document.getElementById(
-                        'btn-anterior'
-                    );
-
-                const btnSiguiente =
-                    document.getElementById(
-                        'btn-siguiente'
-                    );
-
-                const btnFinal =
-                    document.getElementById(
-                        'btn-final'
-                    );
-
-                const selectorVelocidad =
-                    document.getElementById(
-                        'velocidad-reproduccion'
-                    );
-
-                const estadoReproductor =
-                    document.getElementById(
-                        'estado-reproductor'
-                    );
-
-
-                /*
-                |--------------------------------------------------------------------------
-                | SIN DATOS
-                |--------------------------------------------------------------------------
-                */
-
-                if (
-                    ruta.length === 0
-                    ||
-                    ubicaciones.length === 0
-                ) {
-
-                    estadoReproductor.textContent =
-                        'Sin recorrido';
-
-
-                    setTimeout(
-                        () => map.invalidateSize(),
-                        150
-                    );
-
-
-                    return;
+                    return latitud !== null
+                        && longitud !== null
+                        && latitud >= -90
+                        && latitud <= 90
+                        && longitud >= -180
+                        && longitud <= 180;
                 }
 
 
-                /*
-                |--------------------------------------------------------------------------
-                | FUNCIONES DE FECHA
-                |--------------------------------------------------------------------------
-                */
+                function normalizarGeometria(geometria)
+                {
+                    if (!Array.isArray(geometria)) {
+                        return [];
+                    }
 
-                function obtenerFecha(
-                    fechaGps
-                ) {
+                    return geometria
+                        .filter(coordenadaValida)
+                        .map(punto => [
+                            Number(punto[0]),
+                            Number(punto[1])
+                        ]);
+                }
 
-                    if (!fechaGps) {
+
+                function normalizarRegistro(registro)
+                {
+                    if (!registro) {
                         return null;
                     }
 
+                    const latitud = numeroValido(
+                        registro.latitud
+                    );
+
+                    const longitud = numeroValido(
+                        registro.longitud
+                    );
+
+                    if (
+                        latitud === null
+                        || longitud === null
+                        || latitud < -90
+                        || latitud > 90
+                        || longitud < -180
+                        || longitud > 180
+                    ) {
+                        return null;
+                    }
+
+                    const velocidad = numeroValido(
+                        registro.velocidad
+                    );
+
+                    return {
+                        id: registro.id ?? null,
+                        latitud: latitud,
+                        longitud: longitud,
+                        fecha_gps: registro.fecha_gps ?? null,
+                        velocidad: velocidad,
+                        timestamp: registro.fecha_gps
+                            ? new Date(registro.fecha_gps).getTime()
+                            : null,
+                        segmento: registro.segmento ?? null,
+                        posicion: [latitud, longitud],
+                        indiceGeometria: 0
+                    };
+                }
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | PREPARAR SEGMENTOS
+                |--------------------------------------------------------------------------
+                |
+                | Cada segmento conserva su propia geometría y sus propios registros.
+                | Nunca se conectan entre sí dos recorridos separados.
+                |
+                */
+
+                let segmentosPreparados = [];
+
+                if (
+                    Array.isArray(segmentosRutaServidor)
+                    && segmentosRutaServidor.length > 0
+                ) {
+
+                    segmentosPreparados = segmentosRutaServidor.map(
+                        function (geometria, indice) {
+
+                            const path = normalizarGeometria(
+                                geometria
+                            );
+
+                            const registrosCrudos =
+                                Array.isArray(
+                                    segmentosReproduccionServidor[indice]
+                                )
+                                    ? segmentosReproduccionServidor[indice]
+                                    : [];
+
+                            const registros = registrosCrudos
+                                .map(normalizarRegistro)
+                                .filter(Boolean);
+
+                            return {
+                                path: path,
+                                registros: registros
+                            };
+                        }
+                    );
+                }
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | RESPALDO PARA VERSIONES ANTERIORES DEL CONTROLADOR
+                |--------------------------------------------------------------------------
+                */
+
+                if (segmentosPreparados.length === 0) {
+
+                    let geometria = normalizarGeometria(
+                        rutaServidor
+                    );
+
+                    let registrosCrudos =
+                        Array.isArray(puntosReproduccionServidor)
+                        && puntosReproduccionServidor.length > 0
+                            ? puntosReproduccionServidor
+                            : ubicaciones;
+
+                    let registros = registrosCrudos
+                        .map(normalizarRegistro)
+                        .filter(Boolean);
+
+                    if (geometria.length === 0) {
+                        geometria = registros.map(registro => [
+                            registro.latitud,
+                            registro.longitud
+                        ]);
+                    }
+
+                    segmentosPreparados = [{
+                        path: geometria,
+                        registros: registros
+                    }];
+                }
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | ASOCIAR CADA REGISTRO CON LA GEOMETRÍA DE CALLES
+                |--------------------------------------------------------------------------
+                |
+                | Se busca el vértice más cercano de la geometría, manteniendo
+                | el orden de avance del vehículo.
+                |
+                */
+
+                function distanciaEntrePuntos(a, b)
+                {
+                    const radioTierra = 6371000;
+
+                    const lat1 = a[0] * Math.PI / 180;
+                    const lat2 = b[0] * Math.PI / 180;
+                    const diferenciaLatitud =
+                        (b[0] - a[0]) * Math.PI / 180;
+                    const diferenciaLongitud =
+                        (b[1] - a[1]) * Math.PI / 180;
 
                     const valor =
-                        new Date(
-                            fechaGps
-                        );
+                        Math.sin(diferenciaLatitud / 2) ** 2
+                        + Math.cos(lat1)
+                        * Math.cos(lat2)
+                        * Math.sin(diferenciaLongitud / 2) ** 2;
 
-
-                    if (
-                        Number.isNaN(
-                            valor.getTime()
-                        )
-                    ) {
-
-                        return null;
-                    }
-
-
-                    return valor;
+                    return 2 * radioTierra * Math.asin(
+                        Math.min(1, Math.sqrt(valor))
+                    );
                 }
 
 
-                function formatearHora(
-                    fechaGps
-                ) {
+                segmentosPreparados = segmentosPreparados
+                    .map(function (segmento) {
 
-                    const d =
-                        obtenerFecha(
-                            fechaGps
-                        );
+                        let path = segmento.path;
+                        const registros = segmento.registros;
 
-
-                    if (!d) {
-                        return '—';
-                    }
-
-
-                    return d.toLocaleTimeString(
-                        'es-MX',
-                        {
-                            hour:
-                                '2-digit',
-
-                            minute:
-                                '2-digit',
-
-                            second:
-                                '2-digit',
+                        if (path.length === 0 && registros.length > 0) {
+                            path = registros.map(registro => [
+                                registro.latitud,
+                                registro.longitud
+                            ]);
                         }
-                    );
-                }
 
+                        let cursorGeometria = 0;
 
-                function formatearFechaCompleta(
-                    valor
-                ) {
+                        registros.forEach(function (registro) {
 
-                    let d;
-
-
-                    if (
-                        valor instanceof Date
-                    ) {
-
-                        d = valor;
-
-                    } else {
-
-                        d =
-                            obtenerFecha(
-                                valor
-                            );
-                    }
-
-
-                    if (!d) {
-                        return '—';
-                    }
-
-
-                    return d.toLocaleString(
-                        'es-MX',
-                        {
-                            day:
-                                '2-digit',
-
-                            month:
-                                '2-digit',
-
-                            year:
-                                'numeric',
-
-                            hour:
-                                '2-digit',
-
-                            minute:
-                                '2-digit',
-
-                            second:
-                                '2-digit',
-                        }
-                    );
-                }
-
-
-                /*
-                |--------------------------------------------------------------------------
-                | FECHA INICIAL / FINAL
-                |--------------------------------------------------------------------------
-                */
-
-                const primeraFecha =
-                    obtenerFecha(
-                        ubicaciones[0]
-                            .fecha_gps
-                    );
-
-
-                const ultimaFecha =
-                    obtenerFecha(
-                        ubicaciones[
-                            ubicaciones.length - 1
-                        ].fecha_gps
-                    );
-
-
-                document.getElementById(
-                    'hora-inicio'
-                ).textContent =
-                    formatearHora(
-                        ubicaciones[0]
-                            .fecha_gps
-                    );
-
-
-                document.getElementById(
-                    'hora-fin'
-                ).textContent =
-                    formatearHora(
-                        ubicaciones[
-                            ubicaciones.length - 1
-                        ].fecha_gps
-                    );
-
-
-                document.getElementById(
-                    'progreso-inicio'
-                ).textContent =
-                    formatearHora(
-                        ubicaciones[0]
-                            .fecha_gps
-                    );
-
-
-                document.getElementById(
-                    'progreso-fin'
-                ).textContent =
-                    formatearHora(
-                        ubicaciones[
-                            ubicaciones.length - 1
-                        ].fecha_gps
-                    );
-
-
-                /*
-                |--------------------------------------------------------------------------
-                | DIBUJAR RUTA COMPLETA
-                |--------------------------------------------------------------------------
-                */
-
-                let lineaCompleta = null;
-
-
-                if (ruta.length > 1) {
-
-                    lineaCompleta =
-                        L.polyline(
-                            ruta,
-                            {
-                                color:
-                                    '#64748b',
-
-                                weight:
-                                    5,
-
-                                opacity:
-                                    0.75
+                            if (path.length === 0) {
+                                registro.posicion = [
+                                    registro.latitud,
+                                    registro.longitud
+                                ];
+                                registro.indiceGeometria = 0;
+                                return;
                             }
-                        )
-                        .addTo(map);
 
+                            let mejorIndice = cursorGeometria;
+                            let menorDistancia = Infinity;
 
-                    map.fitBounds(
-                        lineaCompleta
-                            .getBounds(),
-                        {
-                            padding:
-                                [
-                                    30,
-                                    30
-                                ]
-                        }
+                            for (
+                                let i = cursorGeometria;
+                                i < path.length;
+                                i++
+                            ) {
+
+                                const distancia = distanciaEntrePuntos(
+                                    [registro.latitud, registro.longitud],
+                                    path[i]
+                                );
+
+                                if (distancia < menorDistancia) {
+                                    menorDistancia = distancia;
+                                    mejorIndice = i;
+                                }
+                            }
+
+                            cursorGeometria = mejorIndice;
+                            registro.indiceGeometria = mejorIndice;
+                            registro.posicion = path[mejorIndice];
+                        });
+
+                        return {
+                            path: path,
+                            registros: registros
+                        };
+                    })
+                    .filter(segmento =>
+                        segmento.path.length > 0
+                        || segmento.registros.length > 0
                     );
 
-                } else {
 
-                    map.setView(
-                        ruta[0],
-                        16
+                /*
+                |--------------------------------------------------------------------------
+                | RESPALDO FINAL: REGISTROS GPS ORIGINALES
+                |--------------------------------------------------------------------------
+                */
+
+                const hayRegistros = segmentosPreparados.some(
+                    segmento => segmento.registros.length > 0
+                );
+
+                if (!hayRegistros && ubicaciones.length > 0) {
+
+                    const registros = ubicaciones
+                        .map(normalizarRegistro)
+                        .filter(Boolean);
+
+                    segmentosPreparados = [{
+                        path: registros.map(registro => [
+                            registro.latitud,
+                            registro.longitud
+                        ]),
+                        registros: registros
+                    }];
+
+                    segmentosPreparados[0].registros.forEach(
+                        function (registro, indice) {
+                            registro.indiceGeometria = indice;
+                            registro.posicion =
+                                segmentosPreparados[0].path[indice];
+                        }
                     );
                 }
 
 
                 /*
                 |--------------------------------------------------------------------------
-                | MARCADOR DE INICIO
+                | LÍNEA DE TIEMPO DEL REPRODUCTOR
                 |--------------------------------------------------------------------------
+                |
+                | El índice del reproductor corresponde a un registro GPS,
+                | no a cada vértice generado por OSRM.
+                |
                 */
 
-                L.circleMarker(
-                    ruta[0],
-                    {
-                        radius:
-                            8,
+                const lineaTiempo = [];
 
-                        color:
-                            '#047857',
+                segmentosPreparados.forEach(
+                    function (segmento, indiceSegmento) {
 
-                        fillColor:
-                            '#10b981',
+                        segmento.registros.forEach(
+                            function (registro, indiceRegistro) {
 
-                        fillOpacity:
-                            1,
-
-                        weight:
-                            3
+                                lineaTiempo.push({
+                                    segmento: indiceSegmento,
+                                    registro: indiceRegistro,
+                                    datos: registro,
+                                    posicion: registro.posicion,
+                                    indiceGeometria:
+                                        registro.indiceGeometria
+                                });
+                            }
+                        );
                     }
-                )
-                .addTo(map)
-                .bindPopup(
-                    '<b>Inicio del recorrido</b><br>'
-                    +
-                    formatearFechaCompleta(
-                        primeraFecha
-                    )
                 );
 
 
                 /*
                 |--------------------------------------------------------------------------
-                | MARCADOR FINAL
+                | MAPA LEAFLET
                 |--------------------------------------------------------------------------
                 */
 
-                if (ruta.length > 1) {
+                let coordenadaInicial = [
+                    19.4326,
+                    -99.1332
+                ];
+
+                if (lineaTiempo.length > 0) {
+                    coordenadaInicial = lineaTiempo[0].posicion;
+                } else if (
+                    segmentosPreparados.length > 0
+                    && segmentosPreparados[0].path.length > 0
+                ) {
+                    coordenadaInicial =
+                        segmentosPreparados[0].path[0];
+                }
+
+                const map = L.map(
+                    'mapa-historial'
+                ).setView(
+                    coordenadaInicial,
+                    13
+                );
+
+                L.tileLayer(
+                    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    {
+                        maxZoom: 19,
+                        attribution:
+                            '&copy; OpenStreetMap contributors'
+                    }
+                ).addTo(map);
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | ELEMENTOS DEL REPRODUCTOR
+                |--------------------------------------------------------------------------
+                */
+
+                const barra = document.getElementById(
+                    'barra-progreso'
+                );
+
+                const btnPlay = document.getElementById(
+                    'btn-reproducir'
+                );
+
+                const btnInicio = document.getElementById(
+                    'btn-reiniciar'
+                );
+
+                const btnAnterior = document.getElementById(
+                    'btn-anterior'
+                );
+
+                const btnSiguiente = document.getElementById(
+                    'btn-siguiente'
+                );
+
+                const btnFinal = document.getElementById(
+                    'btn-final'
+                );
+
+                const selectorVelocidad = document.getElementById(
+                    'velocidad-reproduccion'
+                );
+
+                const estadoReproductor = document.getElementById(
+                    'estado-reproductor'
+                );
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | FUNCIONES DE FECHA Y HORA
+                |--------------------------------------------------------------------------
+                */
+
+                function obtenerFecha(valor)
+                {
+                    if (!valor) {
+                        return null;
+                    }
+
+                    const fecha = new Date(valor);
+
+                    return Number.isNaN(fecha.getTime())
+                        ? null
+                        : fecha;
+                }
+
+
+                function formatearHora(valor)
+                {
+                    const fecha = obtenerFecha(valor);
+
+                    if (!fecha) {
+                        return '—';
+                    }
+
+                    return fecha.toLocaleTimeString(
+                        'es-MX',
+                        {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit'
+                        }
+                    );
+                }
+
+
+                function formatearFechaCompleta(valor)
+                {
+                    const fecha = obtenerFecha(valor);
+
+                    if (!fecha) {
+                        return 'Fecha no disponible';
+                    }
+
+                    return fecha.toLocaleString(
+                        'es-MX',
+                        {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit'
+                        }
+                    );
+                }
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | OBTENER PRIMER Y ÚLTIMO REGISTRO
+                |--------------------------------------------------------------------------
+                */
+
+                const primerRegistro = lineaTiempo.length > 0
+                    ? lineaTiempo[0].datos
+                    : null;
+
+                const ultimoRegistro = lineaTiempo.length > 0
+                    ? lineaTiempo[lineaTiempo.length - 1].datos
+                    : null;
+
+                const primeraFecha = primerRegistro
+                    ? primerRegistro.fecha_gps
+                    : (ubicaciones[0]?.fecha_gps ?? null);
+
+                const ultimaFecha = ultimoRegistro
+                    ? ultimoRegistro.fecha_gps
+                    : (
+                        ubicaciones.length > 0
+                            ? ubicaciones[ubicaciones.length - 1].fecha_gps
+                            : null
+                    );
+
+                document.getElementById(
+                    'hora-inicio'
+                ).textContent = formatearHora(primeraFecha);
+
+                document.getElementById(
+                    'hora-fin'
+                ).textContent = formatearHora(ultimaFecha);
+
+                document.getElementById(
+                    'progreso-inicio'
+                ).textContent = formatearHora(primeraFecha);
+
+                document.getElementById(
+                    'progreso-fin'
+                ).textContent = formatearHora(ultimaFecha);
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | DIBUJAR CADA SEGMENTO POR SEPARADO
+                |--------------------------------------------------------------------------
+                |
+                | No se crea una polilínea única entre segmentos distintos.
+                |
+                */
+
+                const lineasBase = [];
+                const lineasRecorridas = [];
+                const coordenadasBounds = [];
+                let distanciaTotal = 0;
+
+                segmentosPreparados.forEach(
+                    function (segmento) {
+
+                        const path = segmento.path;
+
+                        path.forEach(punto =>
+                            coordenadasBounds.push(punto)
+                        );
+
+                        if (path.length > 1) {
+
+                            const linea = L.polyline(
+                                path,
+                                {
+                                    color: '#64748b',
+                                    weight: 5,
+                                    opacity: 0.75,
+                                    lineCap: 'round',
+                                    lineJoin: 'round'
+                                }
+                            ).addTo(map);
+
+                            lineasBase.push(linea);
+
+                            for (
+                                let i = 1;
+                                i < path.length;
+                                i++
+                            ) {
+                                distanciaTotal += map.distance(
+                                    path[i - 1],
+                                    path[i]
+                                );
+                            }
+                        }
+
+                        const lineaProgreso = L.polyline(
+                            [],
+                            {
+                                color: '#0056b3',
+                                weight: 7,
+                                opacity: 1,
+                                lineCap: 'round',
+                                lineJoin: 'round'
+                            }
+                        ).addTo(map);
+
+                        lineasRecorridas.push(lineaProgreso);
+                    }
+                );
+
+                document.getElementById(
+                    'distancia-total'
+                ).textContent = distanciaTotal < 1000
+                    ? `${Math.round(distanciaTotal)} m`
+                    : `${(distanciaTotal / 1000).toFixed(2)} km`;
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | MARCADORES DE INICIO Y FIN
+                |--------------------------------------------------------------------------
+                */
+
+                const primeraPosicion = lineaTiempo.length > 0
+                    ? lineaTiempo[0].posicion
+                    : coordenadasBounds[0];
+
+                const ultimaPosicion = lineaTiempo.length > 0
+                    ? lineaTiempo[lineaTiempo.length - 1].posicion
+                    : coordenadasBounds[coordenadasBounds.length - 1];
+
+                if (primeraPosicion) {
 
                     L.circleMarker(
-                        ruta[
-                            ruta.length - 1
-                        ],
+                        primeraPosicion,
                         {
-                            radius:
-                                8,
+                            radius: 8,
+                            color: '#047857',
+                            fillColor: '#10b981',
+                            fillOpacity: 1,
+                            weight: 3
+                        }
+                    )
+                    .addTo(map)
+                    .bindPopup(
+                        '<b>Inicio del recorrido</b><br>'
+                        + formatearFechaCompleta(primeraFecha)
+                    );
+                }
 
-                            color:
-                                '#b91c1c',
+                if (
+                    ultimaPosicion
+                    && lineaTiempo.length > 1
+                ) {
 
-                            fillColor:
-                                '#ef4444',
-
-                            fillOpacity:
-                                1,
-
-                            weight:
-                                3
+                    L.circleMarker(
+                        ultimaPosicion,
+                        {
+                            radius: 8,
+                            color: '#b91c1c',
+                            fillColor: '#ef4444',
+                            fillOpacity: 1,
+                            weight: 3
                         }
                     )
                     .addTo(map)
                     .bindPopup(
                         '<b>Fin del recorrido</b><br>'
-                        +
-                        formatearFechaCompleta(
-                            ultimaFecha
-                        )
+                        + formatearFechaCompleta(ultimaFecha)
                     );
                 }
 
@@ -1365,128 +1558,65 @@
                 |--------------------------------------------------------------------------
                 */
 
-                const iconoVehiculo =
-                    L.divIcon({
+                const iconoVehiculo = L.divIcon({
 
-                        className:
-                            'sotygeo-marker',
+                    className: 'sotygeo-marker',
 
-                        html:
-                            `
-                            <div style="
-                                width:42px;
-                                height:42px;
-                                display:flex;
-                                align-items:center;
-                                justify-content:center;
-                                border-radius:50%;
-                                background:#0056b3;
-                                color:white;
-                                border:3px solid white;
-                                box-shadow:0 3px 12px rgba(0,0,0,.30);
-                            ">
-                                <span
-                                    class="material-symbols-rounded"
-                                    style="font-size:23px;"
-                                >
-                                    local_shipping
-                                </span>
-                            </div>
-                            `,
+                    html: `
+                        <div style="
+                            width:42px;
+                            height:42px;
+                            display:flex;
+                            align-items:center;
+                            justify-content:center;
+                            border-radius:50%;
+                            background:#0056b3;
+                            color:white;
+                            border:3px solid white;
+                            box-shadow:0 3px 12px rgba(0,0,0,.30);
+                        ">
+                            <span
+                                class="material-symbols-rounded"
+                                style="font-size:23px;"
+                            >
+                                local_shipping
+                            </span>
+                        </div>
+                    `,
 
-                        iconSize:
-                            [
-                                42,
-                                42
-                            ],
+                    iconSize: [42, 42],
+                    iconAnchor: [21, 21]
+                });
 
-                        iconAnchor:
-                            [
-                                21,
-                                21
-                            ]
-                    });
-
-
-                const marcador =
-                    L.marker(
-                        ruta[0],
-                        {
-                            icon:
-                                iconoVehiculo,
-
-                            zIndexOffset:
-                                1000
-                        }
-                    )
-                    .addTo(map);
+                const marcador = L.marker(
+                    primeraPosicion ?? coordenadaInicial,
+                    {
+                        icon: iconoVehiculo,
+                        zIndexOffset: 1000
+                    }
+                ).addTo(map);
 
 
                 /*
                 |--------------------------------------------------------------------------
-                | RECORRIDO COMPLETADO
+                | AJUSTAR ZOOM A TODOS LOS SEGMENTOS
                 |--------------------------------------------------------------------------
                 */
 
-                const lineaRecorrida =
-                    L.polyline(
-                        [
-                            ruta[0]
-                        ],
+                if (coordenadasBounds.length > 0) {
+
+                    const bounds = L.latLngBounds(
+                        coordenadasBounds
+                    );
+
+                    map.fitBounds(
+                        bounds,
                         {
-                            color:
-                                '#0056b3',
-
-                            weight:
-                                7,
-
-                            opacity:
-                                1
+                            padding: [30, 30],
+                            maxZoom: 16
                         }
-                    )
-                    .addTo(map);
-
-
-                /*
-                |--------------------------------------------------------------------------
-                | DISTANCIA TOTAL
-                |--------------------------------------------------------------------------
-                */
-
-                let distanciaTotal =
-                    0;
-
-
-                for (
-                    let i = 1;
-                    i < ruta.length;
-                    i++
-                ) {
-
-                    distanciaTotal +=
-                        map.distance(
-                            ruta[
-                                i - 1
-                            ],
-                            ruta[i]
-                        );
+                    );
                 }
-
-
-                document.getElementById(
-                    'distancia-total'
-                ).textContent =
-                    distanciaTotal < 1000
-                        ?
-                        `${Math.round(
-                            distanciaTotal
-                        )} m`
-                        :
-                        `${(
-                            distanciaTotal
-                            /
-                            1000
-                        ).toFixed(2)} km`;
 
 
                 /*
@@ -1495,14 +1625,40 @@
                 |--------------------------------------------------------------------------
                 */
 
-                let indice =
-                    0;
+                let indice = 0;
+                let reproduciendo = false;
+                let temporizador = null;
 
-                let reproduciendo =
-                    false;
 
-                let temporizador =
-                    null;
+                /*
+                |--------------------------------------------------------------------------
+                | SIN DATOS
+                |--------------------------------------------------------------------------
+                */
+
+                if (lineaTiempo.length === 0) {
+
+                    estadoReproductor.textContent = 'Sin registros';
+
+                    [
+                        barra,
+                        btnPlay,
+                        btnInicio,
+                        btnAnterior,
+                        btnSiguiente,
+                        btnFinal,
+                        selectorVelocidad
+                    ].forEach(control => {
+                        control.disabled = true;
+                    });
+
+                    setTimeout(
+                        () => map.invalidateSize(),
+                        150
+                    );
+
+                    return;
+                }
 
 
                 /*
@@ -1511,78 +1667,90 @@
                 |--------------------------------------------------------------------------
                 */
 
-                barra.max =
-                    Math.max(
-                        ruta.length - 1,
-                        0
-                    );
+                barra.max = Math.max(
+                    lineaTiempo.length - 1,
+                    0
+                );
 
-                barra.disabled =
-                    false;
+                barra.value = 0;
+                barra.disabled = false;
 
-                btnInicio.disabled =
-                    false;
-
-                btnAnterior.disabled =
-                    false;
-
-                btnSiguiente.disabled =
-                    false;
-
-                btnFinal.disabled =
-                    false;
-
-                selectorVelocidad.disabled =
-                    false;
-
-                btnPlay.disabled =
-                    ruta.length < 2;
+                btnInicio.disabled = false;
+                btnAnterior.disabled = false;
+                btnSiguiente.disabled = false;
+                btnFinal.disabled = false;
+                selectorVelocidad.disabled = false;
+                btnPlay.disabled = lineaTiempo.length < 2;
 
 
                 /*
                 |--------------------------------------------------------------------------
-                | OBTENER GPS MÁS CERCANO AL PROGRESO
+                | ACTUALIZAR LÍNEAS RECORRIDAS
                 |--------------------------------------------------------------------------
+                |
+                | Los segmentos anteriores quedan completos; el actual se dibuja
+                | hasta el registro reproducido; los siguientes permanecen ocultos.
+                |
                 */
 
-                function obtenerGpsPorProgreso(
-                    progreso
-                ) {
+                function actualizarLineasRecorridas(puntoActual)
+                {
+                    segmentosPreparados.forEach(
+                        function (segmento, indiceSegmento) {
 
-                    if (
-                        ubicaciones.length === 1
-                    ) {
+                            const linea = lineasRecorridas[indiceSegmento];
 
-                        return ubicaciones[0];
-                    }
+                            if (indiceSegmento < puntoActual.segmento) {
 
+                                linea.setLatLngs(
+                                    segmento.path
+                                );
 
-                    const indiceGps =
-                        Math.min(
-                            ubicaciones.length - 1,
-                            Math.max(
+                                return;
+                            }
+
+                            if (indiceSegmento > puntoActual.segmento) {
+
+                                linea.setLatLngs([]);
+
+                                return;
+                            }
+
+                            const limite = Math.max(
                                 0,
-                                Math.round(
-                                    progreso
-                                    *
-                                    (
-                                        ubicaciones.length - 1
-                                    )
-                                )
-                            )
-                        );
+                                puntoActual.indiceGeometria
+                            );
 
+                            const recorridoParcial = segmento.path.slice(
+                                0,
+                                limite + 1
+                            );
 
-                    return ubicaciones[
-                        indiceGps
-                    ];
+                            if (
+                                recorridoParcial.length === 0
+                                && puntoActual.posicion
+                            ) {
+                                recorridoParcial.push(
+                                    puntoActual.posicion
+                                );
+                            }
+
+                            linea.setLatLngs(
+                                recorridoParcial
+                            );
+                        }
+                    );
                 }
 
 
                 /*
                 |--------------------------------------------------------------------------
-                | MOSTRAR PUNTO
+                | MOSTRAR REGISTRO GPS
                 |--------------------------------------------------------------------------
+                |
+                | La hora y velocidad provienen del registro GPS original.
+                | La posición utiliza el punto ajustado a la vialidad.
+                |
                 */
 
                 function mostrarPunto(
@@ -1590,149 +1758,66 @@
                     centrar = true
                 ) {
 
-                    indice =
-                        Math.max(
-                            0,
-                            Math.min(
-                                nuevoIndice,
-                                ruta.length - 1
-                            )
-                        );
-
-
-                    const punto =
-                        ruta[indice];
-
-
-                    const progreso =
-                        ruta.length <= 1
-                            ?
-                            0
-                            :
-                            indice
-                            /
-                            (
-                                ruta.length - 1
-                            );
-
-
-                    const gps =
-                        obtenerGpsPorProgreso(
-                            progreso
-                        );
-
-
-                    /*
-                    | Interpolar tiempo entre
-                    | primer y último reporte.
-                    */
-
-                    let tiempoActual =
-                        primeraFecha;
-
-
-                    if (
-                        primeraFecha
-                        &&
-                        ultimaFecha
-                    ) {
-
-                        const milisegundos =
-                            primeraFecha.getTime()
-                            +
-                            (
-                                ultimaFecha.getTime()
-                                -
-                                primeraFecha.getTime()
-                            )
-                            *
-                            progreso;
-
-
-                        tiempoActual =
-                            new Date(
-                                milisegundos
-                            );
-                    }
-
-
-                    marcador.setLatLng(
-                        punto
-                    );
-
-
-                    lineaRecorrida.setLatLngs(
-                        ruta.slice(
-                            0,
-                            indice + 1
+                    indice = Math.max(
+                        0,
+                        Math.min(
+                            nuevoIndice,
+                            lineaTiempo.length - 1
                         )
                     );
 
+                    const puntoActual = lineaTiempo[indice];
+                    const registro = puntoActual.datos;
+                    const posicion = puntoActual.posicion;
 
-                    barra.value =
-                        indice;
+                    marcador.setLatLng(posicion);
 
+                    actualizarLineasRecorridas(
+                        puntoActual
+                    );
+
+                    barra.value = indice;
 
                     document.getElementById(
                         'contador-puntos'
                     ).textContent =
-                        `Punto ${indice + 1} de ${ruta.length}`;
-
+                        `Punto ${indice + 1} de ${lineaTiempo.length}`;
 
                     document.getElementById(
                         'dato-hora'
-                    ).textContent =
-                        formatearFechaCompleta(
-                            tiempoActual
-                        );
+                    ).textContent = formatearFechaCompleta(
+                        registro.fecha_gps
+                    );
 
-
-                    const velocidad =
-                        parseFloat(
-                            gps.velocidad
-                            ??
-                            0
-                        );
-
+                    const velocidad = numeroValido(
+                        registro.velocidad
+                    );
 
                     document.getElementById(
                         'dato-velocidad'
-                    ).textContent =
-                        `${
-                            Number.isFinite(
-                                velocidad
-                            )
-                                ?
-                                velocidad.toFixed(1)
-                                :
-                                '0.0'
-                        } km/h`;
-
+                    ).textContent = velocidad === null
+                        ? 'No disponible'
+                        : `${velocidad.toFixed(1)} km/h`;
 
                     document.getElementById(
                         'dato-latitud'
-                    ).textContent =
-                        punto[0]
-                            .toFixed(7);
-
+                    ).textContent = Number(
+                        posicion[0]
+                    ).toFixed(7);
 
                     document.getElementById(
                         'dato-longitud'
-                    ).textContent =
-                        punto[1]
-                            .toFixed(7);
-
+                    ).textContent = Number(
+                        posicion[1]
+                    ).toFixed(7);
 
                     if (centrar) {
 
                         map.panTo(
-                            punto,
+                            posicion,
                             {
-                                animate:
-                                    true,
-
-                                duration:
-                                    0.25
+                                animate: true,
+                                duration: 0.25
                             }
                         );
                     }
@@ -1747,24 +1832,17 @@
 
                 function obtenerIntervalo()
                 {
-                    const multiplicador =
-                        parseFloat(
-                            selectorVelocidad
-                                .value
-                        )
-                        ||
-                        1;
+                    const multiplicador = parseFloat(
+                        selectorVelocidad.value
+                    ) || 1;
 
-
-                    return 500
-                        /
-                        multiplicador;
+                    return 500 / multiplicador;
                 }
 
 
                 /*
                 |--------------------------------------------------------------------------
-                | BOTÓN PLAY
+                | ACTUALIZAR ESTADO DEL BOTÓN
                 |--------------------------------------------------------------------------
                 */
 
@@ -1772,73 +1850,77 @@
                 {
                     document.getElementById(
                         'icono-reproducir'
-                    ).textContent =
-                        reproduciendo
-                            ?
-                            'pause'
-                            :
-                            'play_arrow';
-
+                    ).textContent = reproduciendo
+                        ? 'pause'
+                        : 'play_arrow';
 
                     document.getElementById(
                         'texto-reproducir'
-                    ).textContent =
-                        reproduciendo
-                            ?
-                            'Pausar'
-                            :
-                            'Reproducir';
-
+                    ).textContent = reproduciendo
+                        ? 'Pausar'
+                        : 'Reproducir';
 
                     if (reproduciendo) {
 
-                        estadoReproductor.textContent =
-                            'Reproduciendo';
+                        estadoReproductor.textContent = 'Reproduciendo';
 
                         estadoReproductor.className =
-                            'rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700';
+                            'rounded-full border border-emerald-200 '
+                            + 'bg-emerald-50 px-3 py-1 '
+                            + 'text-xs font-medium text-emerald-700';
 
                     } else {
 
                         estadoReproductor.textContent =
-                            indice
-                            >=
-                            ruta.length - 1
-                                ?
-                                'Finalizado'
-                                :
-                                'Pausado';
+                            indice >= lineaTiempo.length - 1
+                                ? 'Finalizado'
+                                : 'Pausado';
 
                         estadoReproductor.className =
-                            'rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600';
+                            'rounded-full border border-gray-200 '
+                            + 'bg-white px-3 py-1 '
+                            + 'text-xs font-medium text-gray-600';
                     }
                 }
 
 
                 /*
                 |--------------------------------------------------------------------------
-                | DETENER
+                | DETENER REPRODUCCIÓN
                 |--------------------------------------------------------------------------
                 */
 
                 function detener()
                 {
-                    reproduciendo =
-                        false;
-
+                    reproduciendo = false;
 
                     if (temporizador) {
-
-                        clearInterval(
-                            temporizador
-                        );
-
-                        temporizador =
-                            null;
+                        clearInterval(temporizador);
+                        temporizador = null;
                     }
 
-
                     actualizarBoton();
+                }
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | AVANZAR UN REGISTRO
+                |--------------------------------------------------------------------------
+                */
+
+                function avanzar()
+                {
+                    if (indice >= lineaTiempo.length - 1) {
+                        detener();
+                        return;
+                    }
+
+                    mostrarPunto(indice + 1);
+
+                    if (indice >= lineaTiempo.length - 1) {
+                        detener();
+                    }
                 }
 
 
@@ -1850,56 +1932,25 @@
 
                 function reproducir()
                 {
-                    if (
-                        ruta.length < 2
-                    ) {
-
+                    if (lineaTiempo.length < 2) {
                         return;
                     }
 
-
-                    if (
-                        indice
-                        >=
-                        ruta.length - 1
-                    ) {
-
-                        mostrarPunto(
-                            0
-                        );
+                    if (indice >= lineaTiempo.length - 1) {
+                        mostrarPunto(0);
                     }
 
-
-                    reproduciendo =
-                        true;
-
-
+                    reproduciendo = true;
                     actualizarBoton();
 
+                    if (temporizador) {
+                        clearInterval(temporizador);
+                    }
 
-                    temporizador =
-                        setInterval(
-                            function () {
-
-                                if (
-                                    indice
-                                    >=
-                                    ruta.length - 1
-                                ) {
-
-                                    detener();
-
-                                    return;
-                                }
-
-
-                                mostrarPunto(
-                                    indice + 1
-                                );
-
-                            },
-                            obtenerIntervalo()
-                        );
+                    temporizador = setInterval(
+                        avanzar,
+                        obtenerIntervalo()
+                    );
                 }
 
 
@@ -1914,11 +1965,8 @@
                     function () {
 
                         if (reproduciendo) {
-
                             detener();
-
                         } else {
-
                             reproducir();
                         }
                     }
@@ -1934,12 +1982,8 @@
                 btnInicio.addEventListener(
                     'click',
                     function () {
-
                         detener();
-
-                        mostrarPunto(
-                            0
-                        );
+                        mostrarPunto(0);
                     }
                 );
 
@@ -1953,12 +1997,8 @@
                 btnAnterior.addEventListener(
                     'click',
                     function () {
-
                         detener();
-
-                        mostrarPunto(
-                            indice - 1
-                        );
+                        mostrarPunto(indice - 1);
                     }
                 );
 
@@ -1972,12 +2012,8 @@
                 btnSiguiente.addEventListener(
                     'click',
                     function () {
-
                         detener();
-
-                        mostrarPunto(
-                            indice + 1
-                        );
+                        mostrarPunto(indice + 1);
                     }
                 );
 
@@ -1991,12 +2027,8 @@
                 btnFinal.addEventListener(
                     'click',
                     function () {
-
                         detener();
-
-                        mostrarPunto(
-                            ruta.length - 1
-                        );
+                        mostrarPunto(lineaTiempo.length - 1);
                     }
                 );
 
@@ -2010,17 +2042,9 @@
                 barra.addEventListener(
                     'input',
                     function () {
-
                         detener();
-
-
                         mostrarPunto(
-                            parseInt(
-                                this.value,
-                                10
-                            )
-                            ||
-                            0
+                            parseInt(this.value, 10) || 0
                         );
                     }
                 );
@@ -2028,7 +2052,7 @@
 
                 /*
                 |--------------------------------------------------------------------------
-                | VELOCIDAD
+                | CAMBIAR VELOCIDAD
                 |--------------------------------------------------------------------------
                 */
 
@@ -2036,65 +2060,35 @@
                     'change',
                     function () {
 
-                        if (reproduciendo) {
-
-                            if (temporizador) {
-
-                                clearInterval(
-                                    temporizador
-                                );
-                            }
-
-
-                            temporizador =
-                                setInterval(
-                                    function () {
-
-                                        if (
-                                            indice
-                                            >=
-                                            ruta.length - 1
-                                        ) {
-
-                                            detener();
-
-                                            return;
-                                        }
-
-
-                                        mostrarPunto(
-                                            indice + 1
-                                        );
-
-                                    },
-                                    obtenerIntervalo()
-                                );
+                        if (!reproduciendo) {
+                            return;
                         }
+
+                        if (temporizador) {
+                            clearInterval(temporizador);
+                        }
+
+                        temporizador = setInterval(
+                            avanzar,
+                            obtenerIntervalo()
+                        );
                     }
                 );
 
 
                 /*
                 |--------------------------------------------------------------------------
-                | INICIALIZAR
+                | INICIALIZAR REPRODUCTOR
                 |--------------------------------------------------------------------------
                 */
 
-                mostrarPunto(
-                    0,
-                    false
-                );
+                mostrarPunto(0, false);
 
-
-                estadoReproductor.textContent =
-                    'Listo';
-
+                estadoReproductor.textContent = 'Listo';
 
                 setTimeout(
                     function () {
-
                         map.invalidateSize();
-
                     },
                     150
                 );

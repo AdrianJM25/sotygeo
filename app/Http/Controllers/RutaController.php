@@ -13,14 +13,20 @@ use Illuminate\Support\Facades\Log;
 
 class RutaController extends Controller
 {
+    private const OSRM_SERVIDOR =
+        'https://router.project-osrm.org';
+
+    private const MAXIMO_PUNTOS_OSRM = 80;
+
+    private const MINUTOS_SIN_SENAL = 10;
+
+    private const VELOCIDAD_MAXIMA_KMH = 160;
+
+
     /*
     |--------------------------------------------------------------------------
     | LISTADO DE VEHÍCULOS PARA HISTORIAL
     |--------------------------------------------------------------------------
-    |
-    | Permite que los cinco perfiles autorizados accedan al historial
-    | sin necesidad de tener permiso para administrar vehículos.
-    |
     */
 
     public function index()
@@ -30,39 +36,16 @@ class RutaController extends Controller
         $query = Vehiculo::query();
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | SUPER ADMINISTRADOR
-        |--------------------------------------------------------------------------
-        |
-        | Puede consultar todos los vehículos.
-        |
-        */
-
         if (
-            $user->hasRole(
-                'Super Administrador'
-            )
+            $user->hasRole('Super Administrador')
         ) {
 
-            // Sin filtro adicional.
+            // Puede consultar todos los vehículos.
 
         }
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | CLIENTE INDIVIDUAL
-        |--------------------------------------------------------------------------
-        |
-        | Solo puede consultar sus propios vehículos.
-        |
-        */
-
         elseif (
-            $user->hasRole(
-                'Cliente Individual'
-            )
+            $user->hasRole('Cliente Individual')
         ) {
 
             $query->where(
@@ -72,33 +55,15 @@ class RutaController extends Controller
 
         }
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | CONDUCTOR
-        |--------------------------------------------------------------------------
-        |
-        | Solo puede consultar el vehículo que tenga asignado.
-        |
-        | Actualmente relacionamos la cuenta de usuario con el registro
-        | del conductor mediante el correo electrónico.
-        |
-        */
-
         elseif (
-            $user->hasRole(
-                'Conductor'
-            )
+            $user->hasRole('Conductor')
         ) {
 
             $conductor = Conductor::where(
                 'email',
                 $user->email
             )
-                ->where(
-                    'activo',
-                    true
-                )
+                ->where('activo', true)
                 ->first();
 
 
@@ -115,31 +80,10 @@ class RutaController extends Controller
 
             } else {
 
-                /*
-                |--------------------------------------------------------------------------
-                | SIN VEHÍCULO ASIGNADO
-                |--------------------------------------------------------------------------
-                |
-                | No mostramos vehículos de otros usuarios o de toda la empresa.
-                |
-                */
-
-                $query->whereRaw(
-                    '1 = 0'
-                );
+                $query->whereRaw('1 = 0');
             }
 
         }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | ADMINISTRADOR DE EMPRESA / GESTOR DE FLOTILLA
-        |--------------------------------------------------------------------------
-        |
-        | Consultan los vehículos pertenecientes a su empresa.
-        |
-        */
 
         else {
 
@@ -151,17 +95,13 @@ class RutaController extends Controller
 
 
         $vehiculos = $query
-            ->orderBy(
-                'nombre'
-            )
+            ->orderBy('nombre')
             ->get();
 
 
         return view(
             'rutas.index',
-            compact(
-                'vehiculos'
-            )
+            compact('vehiculos')
         );
     }
 
@@ -177,22 +117,10 @@ class RutaController extends Controller
         Vehiculo $vehiculo
     ) {
 
-        /*
-        |--------------------------------------------------------------------------
-        | VERIFICAR ACCESO
-        |--------------------------------------------------------------------------
-        */
-
         $this->verificarPropiedadVehiculo(
             $vehiculo
         );
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | VALIDACIÓN
-        |--------------------------------------------------------------------------
-        */
 
         $request->validate([
             'fecha' => [
@@ -202,28 +130,14 @@ class RutaController extends Controller
         ]);
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | ZONA HORARIA
-        |--------------------------------------------------------------------------
-        */
-
         $zonaLocal = config(
             'app.timezone',
             'America/Mexico_City'
         );
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | FECHA CONSULTADA
-        |--------------------------------------------------------------------------
-        */
-
         if (
-            $request->filled(
-                'fecha'
-            )
+            $request->filled('fecha')
         ) {
 
             $fechaConsulta = Carbon::createFromFormat(
@@ -240,12 +154,6 @@ class RutaController extends Controller
         }
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | INICIO Y FIN DEL DÍA
-        |--------------------------------------------------------------------------
-        */
-
         $inicio = $fechaConsulta
             ->copy()
             ->startOfDay();
@@ -258,21 +166,36 @@ class RutaController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | CONSULTAR UBICACIONES DEL VEHÍCULO
+        | CONSULTAR UBICACIONES GPS
         |--------------------------------------------------------------------------
+        |
+        | Se descartan coordenadas nulas o fuera de rango.
+        |
         */
 
         $ubicaciones = Ubicacion::query()
+
             ->where(
                 'vehiculo_id',
                 $vehiculo->id
             )
-            ->whereNotNull(
-                'latitud'
+
+            ->whereNotNull('latitud')
+
+            ->whereNotNull('longitud')
+
+            ->whereNotNull('fecha_gps')
+
+            ->whereBetween(
+                'latitud',
+                [-90, 90]
             )
-            ->whereNotNull(
-                'longitud'
+
+            ->whereBetween(
+                'longitud',
+                [-180, 180]
             )
+
             ->whereBetween(
                 'fecha_gps',
                 [
@@ -280,36 +203,30 @@ class RutaController extends Controller
                     $fin,
                 ]
             )
-            ->orderBy(
-                'fecha_gps',
-                'asc'
-            )
-            ->orderBy(
-                'id',
-                'asc'
-            )
+
+            ->orderBy('fecha_gps', 'asc')
+
+            ->orderBy('id', 'asc')
+
             ->get();
 
 
         /*
         |--------------------------------------------------------------------------
-        | CONSTRUIR RUTA AJUSTADA A CALLES
+        | CONSTRUIR RECORRIDOS
         |--------------------------------------------------------------------------
         */
 
         [
             $rutaAjustada,
+            $segmentosRuta,
+            $puntosReproduccion,
+            $segmentosReproduccion,
             $modoRuta
         ] = $this->construirRuta(
             $ubicaciones
         );
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | MOSTRAR REPRODUCTOR
-        |--------------------------------------------------------------------------
-        */
 
         return view(
             'vehiculos.ruta',
@@ -318,6 +235,9 @@ class RutaController extends Controller
                 'ubicaciones',
                 'fechaConsulta',
                 'rutaAjustada',
+                'segmentosRuta',
+                'puntosReproduccion',
+                'segmentosReproduccion',
                 'modoRuta'
             )
         );
@@ -326,12 +246,14 @@ class RutaController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | CONSTRUIR RUTA
+    | CONSTRUIR RECORRIDO COMPLETO
     |--------------------------------------------------------------------------
     |
-    | 1. Si tenemos suficientes puntos intentamos Map Matching.
-    | 2. Si falla, calculamos ruta por calles pasando por los puntos.
-    | 3. Si OSRM no responde, usamos los puntos GPS originales.
+    | 1. Separar recorridos independientes.
+    | 2. Reducir coordenadas para OSRM.
+    | 3. Intentar Map Matching.
+    | 4. Utilizar Route como alternativa.
+    | 5. Conservar GPS original como último recurso.
     |
     */
 
@@ -339,364 +261,365 @@ class RutaController extends Controller
         Collection $ubicaciones
     ): array {
 
-        /*
-        |--------------------------------------------------------------------------
-        | RUTA ORIGINAL
-        |--------------------------------------------------------------------------
-        */
-
-        $rutaOriginal = $ubicaciones
-            ->map(function ($ubicacion) {
-
-                return [
-                    (float) $ubicacion->latitud,
-                    (float) $ubicacion->longitud,
-                ];
-
-            })
-            ->values()
-            ->all();
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | MENOS DE DOS PUNTOS
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            $ubicaciones->count() < 2
-        ) {
-
-            return [
-                $rutaOriginal,
-                'gps',
-            ];
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | REDUCIR PUNTOS
-        |--------------------------------------------------------------------------
-        |
-        | Evitamos mandar cientos o miles
-        | de coordenadas en una sola petición.
-        |
-        */
-
-        $puntos = $this->muestrearUbicaciones(
-            $ubicaciones,
-            80
+        $segmentosGps = $this->segmentarUbicaciones(
+            $ubicaciones
         );
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | COORDENADAS PARA OSRM
-        |--------------------------------------------------------------------------
-        |
-        | OSRM utiliza:
-        |
-        | longitud,latitud
-        |
-        */
+        $segmentosRuta = [];
 
-        $coordenadas = collect(
-            $puntos
-        )
-            ->map(function ($ubicacion) {
+        $segmentosReproduccion = [];
 
-                return sprintf(
-                    '%.7F,%.7F',
-                    (float) $ubicacion->longitud,
-                    (float) $ubicacion->latitud
-                );
+        $modos = [];
 
-            })
-            ->implode(
-                ';'
+        $numeroSegmento = 0;
+
+
+        foreach (
+            $segmentosGps as $segmentoGps
+        ) {
+
+            $numeroSegmento++;
+
+
+            $muestras = $this->muestrearUbicaciones(
+                $segmentoGps,
+                self::MAXIMO_PUNTOS_OSRM
             );
 
 
+            if (empty($muestras)) {
+                continue;
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | PRIMER INTENTO: MAP MATCHING
+            |--------------------------------------------------------------------------
+            */
+
+            $resultadoMatch = $this->obtenerMapMatching(
+                $muestras,
+                $numeroSegmento
+            );
+
+
+            if ($resultadoMatch !== null) {
+
+                foreach (
+                    $resultadoMatch['segmentosRuta']
+                    as $indice => $geometria
+                ) {
+
+                    $segmentosRuta[] = $geometria;
+
+                    $segmentosReproduccion[] =
+                        $resultadoMatch['segmentosReproduccion'][$indice]
+                        ?? [];
+                }
+
+
+                $modos[] = 'match';
+
+                continue;
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | SEGUNDO INTENTO: RUTA POR CALLES
+            |--------------------------------------------------------------------------
+            */
+
+            $rutaEstimada = $this->obtenerRutaPorCalles(
+                $muestras
+            );
+
+
+            if ($rutaEstimada !== null) {
+
+                $segmentosRuta[] = $rutaEstimada;
+
+                $segmentosReproduccion[] =
+                    $this->convertirMuestrasAReproduccion(
+                        $muestras,
+                        $numeroSegmento
+                    );
+
+                $modos[] = 'route';
+
+                continue;
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | ÚLTIMO RECURSO: GPS ORIGINAL
+            |--------------------------------------------------------------------------
+            */
+
+            $segmentosRuta[] =
+                $this->convertirUbicacionesAGeometria(
+                    $segmentoGps
+                );
+
+
+            $segmentosReproduccion[] =
+                $this->convertirMuestrasAReproduccion(
+                    $muestras,
+                    $numeroSegmento
+                );
+
+
+            $modos[] = 'gps';
+        }
+
+
         /*
         |--------------------------------------------------------------------------
-        | SERVIDOR OSRM
+        | CONSERVAR COMPATIBILIDAD CON LA VISTA ACTUAL
         |--------------------------------------------------------------------------
         */
 
-        $servidor =
-            'https://router.project-osrm.org';
+        $rutaAjustada = [];
+
+        foreach ($segmentosRuta as $segmento) {
+
+            foreach ($segmento as $punto) {
+
+                $rutaAjustada[] = $punto;
+            }
+        }
+
+
+        $puntosReproduccion = [];
+
+        foreach (
+            $segmentosReproduccion as $segmento
+        ) {
+
+            foreach ($segmento as $punto) {
+
+                $puntosReproduccion[] = $punto;
+            }
+        }
 
 
         /*
         |--------------------------------------------------------------------------
-        | INTENTAR MAP MATCHING
+        | DETERMINAR MODO GENERAL
         |--------------------------------------------------------------------------
         */
 
         if (
-            count(
-                $puntos
-            ) >= 3
+            in_array('match', $modos, true)
         ) {
 
-            try {
+            $modoRuta = 'match';
 
-                $respuesta = Http::acceptJson()
-                    ->timeout(
-                        10
-                    )
-                    ->get(
-                        $servidor
-                        .
-                        '/match/v1/driving/'
-                        .
-                        $coordenadas,
-                        [
-                            'geometries' =>
-                                'geojson',
+        }
 
-                            'overview' =>
-                                'full',
+        elseif (
+            in_array('route', $modos, true)
+        ) {
 
-                            'steps' =>
-                                'false',
+            $modoRuta = 'route';
 
-                            'tidy' =>
-                                'true',
+        }
 
-                            'gaps' =>
-                                'ignore',
-                        ]
-                    );
+        else {
 
-
-                if (
-                    $respuesta->successful()
-                ) {
-
-                    $datos =
-                        $respuesta->json();
-
-
-                    if (
-                        ($datos['code'] ?? null)
-                        ===
-                        'Ok'
-                        &&
-                        !empty(
-                            $datos['matchings']
-                        )
-                    ) {
-
-                        $ruta =
-                            [];
-
-
-                        foreach (
-                            $datos['matchings']
-                            as $matching
-                        ) {
-
-                            $coordenadasMatching =
-                                $matching[
-                                    'geometry'
-                                ][
-                                    'coordinates'
-                                ]
-                                ??
-                                [];
-
-
-                            foreach (
-                                $coordenadasMatching
-                                as $coordenada
-                            ) {
-
-                                if (
-                                    !isset(
-                                        $coordenada[0],
-                                        $coordenada[1]
-                                    )
-                                ) {
-
-                                    continue;
-                                }
-
-
-                                /*
-                                |--------------------------------------------------------------------------
-                                | GeoJSON:
-                                | [longitud, latitud]
-                                |
-                                | Leaflet:
-                                | [latitud, longitud]
-                                |--------------------------------------------------------------------------
-                                */
-
-                                $ruta[] = [
-                                    (float) $coordenada[1],
-                                    (float) $coordenada[0],
-                                ];
-                            }
-                        }
-
-
-                        if (
-                            count(
-                                $ruta
-                            ) >= 2
-                        ) {
-
-                            return [
-                                $ruta,
-                                'match',
-                            ];
-                        }
-                    }
-                }
-
-            } catch (\Throwable $e) {
-
-                Log::warning(
-                    'OSRM Map Matching no disponible.',
-                    [
-                        'mensaje' =>
-                            $e->getMessage(),
-                    ]
-                );
-            }
+            $modoRuta = 'gps';
         }
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | RESPALDO: RUTA POR CALLES
-        |--------------------------------------------------------------------------
-        |
-        | Con pocos puntos no sabemos exactamente
-        | qué camino tomó el vehículo.
-        |
-        | Este modo genera una trayectoria vial
-        | razonable pasando por los puntos GPS.
-        |
-        */
+        return [
+            $rutaAjustada,
+            $segmentosRuta,
+            $puntosReproduccion,
+            $segmentosReproduccion,
+            $modoRuta,
+        ];
+    }
 
-        try {
 
-            $respuesta = Http::acceptJson()
-                ->timeout(
-                    10
+    /*
+    |--------------------------------------------------------------------------
+    | SEPARAR RECORRIDOS
+    |--------------------------------------------------------------------------
+    |
+    | Se inicia otro segmento cuando:
+    |
+    | - Existe una interrupción GPS superior a 10 minutos.
+    | - Se detecta una velocidad calculada superior a 160 km/h
+    |   durante un intervalo de al menos 30 segundos.
+    |
+    | Esto evita conectar posiciones que probablemente
+    | pertenecen a recorridos independientes.
+    |
+    */
+
+    private function segmentarUbicaciones(
+        Collection $ubicaciones
+    ): array {
+
+        $ubicaciones = $ubicaciones->values();
+
+
+        if ($ubicaciones->isEmpty()) {
+            return [];
+        }
+
+
+        $segmentos = [];
+
+        $actual = collect([
+            $ubicaciones->first()
+        ]);
+
+
+        for (
+            $i = 1;
+            $i < $ubicaciones->count();
+            $i++
+        ) {
+
+            $anterior = $ubicaciones[$i - 1];
+
+            $puntoActual = $ubicaciones[$i];
+
+
+            $fechaAnterior = Carbon::parse(
+                $anterior->fecha_gps
+            );
+
+
+            $fechaActual = Carbon::parse(
+                $puntoActual->fecha_gps
+            );
+
+
+            $segundos = max(
+                0,
+                $fechaAnterior->diffInSeconds(
+                    $fechaActual,
+                    false
                 )
-                ->get(
-                    $servidor
-                    .
-                    '/route/v1/driving/'
-                    .
-                    $coordenadas,
-                    [
-                        'geometries' =>
-                            'geojson',
+            );
 
-                        'overview' =>
-                            'full',
 
-                        'steps' =>
-                            'false',
+            $distancia = $this->distanciaMetros(
+                (float) $anterior->latitud,
+                (float) $anterior->longitud,
+                (float) $puntoActual->latitud,
+                (float) $puntoActual->longitud
+            );
 
-                        'continue_straight' =>
-                            'true',
-                    ]
-                );
+
+            $velocidadCalculada = 0;
+
+
+            if ($segundos > 0) {
+
+                $velocidadCalculada =
+                    ($distancia / $segundos) * 3.6;
+            }
+
+
+            $interrupcionGps =
+                $segundos >
+                (self::MINUTOS_SIN_SENAL * 60);
+
+
+            $saltoIrreal =
+                $segundos >= 30
+                &&
+                $velocidadCalculada >
+                self::VELOCIDAD_MAXIMA_KMH;
 
 
             if (
-                $respuesta->successful()
+                $interrupcionGps
+                ||
+                $saltoIrreal
             ) {
 
-                $datos =
-                    $respuesta->json();
+                $segmentos[] = $actual->values();
 
-
-                if (
-                    ($datos['code'] ?? null)
-                    ===
-                    'Ok'
-                    &&
-                    !empty(
-                        $datos[
-                            'routes'
-                        ][0][
-                            'geometry'
-                        ][
-                            'coordinates'
-                        ]
-                    )
-                ) {
-
-                    $ruta =
-                        collect(
-                            $datos[
-                                'routes'
-                            ][0][
-                                'geometry'
-                            ][
-                                'coordinates'
-                            ]
-                        )
-                            ->map(
-                                function (
-                                    $coordenada
-                                ) {
-
-                                    return [
-                                        (float) $coordenada[1],
-                                        (float) $coordenada[0],
-                                    ];
-
-                                }
-                            )
-                            ->values()
-                            ->all();
-
-
-                    if (
-                        count(
-                            $ruta
-                        ) >= 2
-                    ) {
-
-                        return [
-                            $ruta,
-                            'route',
-                        ];
-                    }
-                }
+                $actual = collect();
             }
 
-        } catch (\Throwable $e) {
 
-            Log::warning(
-                'OSRM Route no disponible.',
-                [
-                    'mensaje' =>
-                        $e->getMessage(),
-                ]
+            $actual->push(
+                $puntoActual
             );
         }
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | ÚLTIMO RESPALDO
-        |--------------------------------------------------------------------------
-        */
+        if ($actual->isNotEmpty()) {
 
-        return [
-            $rutaOriginal,
-            'gps',
-        ];
+            $segmentos[] = $actual->values();
+        }
+
+
+        return $segmentos;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | CALCULAR DISTANCIA ENTRE DOS COORDENADAS
+    |--------------------------------------------------------------------------
+    |
+    | Fórmula de Haversine.
+    | Devuelve metros.
+    |
+    */
+
+    private function distanciaMetros(
+        float $latitud1,
+        float $longitud1,
+        float $latitud2,
+        float $longitud2
+    ): float {
+
+        $radioTierra = 6371000;
+
+
+        $lat1 = deg2rad($latitud1);
+
+        $lat2 = deg2rad($latitud2);
+
+        $dLat = deg2rad(
+            $latitud2 - $latitud1
+        );
+
+        $dLon = deg2rad(
+            $longitud2 - $longitud1
+        );
+
+
+        $a =
+            sin($dLat / 2) ** 2
+            +
+            cos($lat1)
+            *
+            cos($lat2)
+            *
+            sin($dLon / 2) ** 2;
+
+
+        return 2
+            *
+            $radioTierra
+            *
+            asin(
+                min(
+                    1,
+                    sqrt($a)
+                )
+            );
     }
 
 
@@ -705,8 +628,10 @@ class RutaController extends Controller
     | REDUCIR CANTIDAD DE PUNTOS
     |--------------------------------------------------------------------------
     |
-    | Conservamos el inicio, fin y puntos intermedios
-    | distribuidos uniformemente.
+    | Se conservan:
+    | - Punto inicial.
+    | - Punto final.
+    | - Puntos intermedios distribuidos uniformemente.
     |
     */
 
@@ -715,34 +640,20 @@ class RutaController extends Controller
         int $maximo
     ): array {
 
-        $cantidad =
-            $ubicaciones->count();
+        $ubicaciones = $ubicaciones->values();
+
+        $cantidad = $ubicaciones->count();
+
+        $maximo = max(2, $maximo);
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | NO NECESITA REDUCCIÓN
-        |--------------------------------------------------------------------------
-        */
+        if ($cantidad <= $maximo) {
 
-        if (
-            $cantidad <= $maximo
-        ) {
-
-            return $ubicaciones
-                ->values()
-                ->all();
+            return $ubicaciones->all();
         }
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | MUESTREO UNIFORME
-        |--------------------------------------------------------------------------
-        */
-
-        $resultado =
-            [];
+        $resultado = [];
 
 
         for (
@@ -760,18 +671,12 @@ class RutaController extends Controller
             );
 
 
-            $resultado[
-                $indice
-            ] =
-                $ubicaciones[
-                    $indice
-                ];
+            $resultado[$indice] =
+                $ubicaciones->get($indice);
         }
 
 
-        ksort(
-            $resultado
-        );
+        ksort($resultado);
 
 
         return array_values(
@@ -782,23 +687,539 @@ class RutaController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | VERIFICAR ACCESO AL VEHÍCULO
+    | OSRM MAP MATCHING
     |--------------------------------------------------------------------------
     |
-    | Se aplica también cuando alguien intenta escribir directamente:
+    | Ajusta los puntos GPS a la red vial.
     |
-    | /vehiculos/ID/ruta
+    | También recupera tracepoints para relacionar
+    | las posiciones ajustadas con sus registros GPS.
     |
-    | De esta manera no basta con ocultar vehículos en la interfaz.
+    */
+
+    private function obtenerMapMatching(
+        array $muestras,
+        int $numeroSegmento
+    ): ?array {
+
+        if (count($muestras) < 3) {
+            return null;
+        }
+
+
+        $coordenadas = $this->construirCadenaCoordenadas(
+            $muestras
+        );
+
+
+        $radios = implode(
+            ';',
+            array_fill(
+                0,
+                count($muestras),
+                '35'
+            )
+        );
+
+
+        try {
+
+            $respuesta = Http::acceptJson()
+
+                ->timeout(15)
+
+                ->get(
+                    self::OSRM_SERVIDOR
+                    .
+                    '/match/v1/driving/'
+                    .
+                    $coordenadas,
+                    [
+                        'geometries' => 'geojson',
+
+                        'overview' => 'full',
+
+                        'steps' => 'false',
+
+                        'tidy' => 'true',
+
+                        'gaps' => 'split',
+
+                        'radiuses' => $radios,
+                    ]
+                );
+
+
+            if (!$respuesta->successful()) {
+
+                Log::warning(
+                    'OSRM Map Matching respondió con error.',
+                    [
+                        'status' => $respuesta->status(),
+
+                        'segmento' => $numeroSegmento,
+                    ]
+                );
+
+                return null;
+            }
+
+
+            $datos = $respuesta->json();
+
+
+            if (
+                ($datos['code'] ?? null) !== 'Ok'
+                ||
+                empty($datos['matchings'])
+            ) {
+
+                return null;
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | RELACIONAR TRACEPOINTS CON GPS ORIGINAL
+            |--------------------------------------------------------------------------
+            */
+
+            $reproduccionPorMatching = [];
+
+
+            $tracepoints = $datos['tracepoints'] ?? [];
+
+
+            foreach (
+                $tracepoints as $indice => $tracepoint
+            ) {
+
+                if (
+                    !is_array($tracepoint)
+                    ||
+                    !isset(
+                        $tracepoint['location'][0],
+                        $tracepoint['location'][1],
+                        $tracepoint['matchings_index']
+                    )
+                ) {
+
+                    continue;
+                }
+
+
+                $ubicacionOriginal =
+                    $muestras[$indice]
+                    ?? null;
+
+
+                if (!$ubicacionOriginal) {
+                    continue;
+                }
+
+
+                $indiceMatching = (int)
+                    $tracepoint['matchings_index'];
+
+
+                /*
+                | OSRM devuelve longitud, latitud.
+                | Convertimos a latitud, longitud.
+                */
+
+                $latitud = (float)
+                    $tracepoint['location'][1];
+
+
+                $longitud = (float)
+                    $tracepoint['location'][0];
+
+
+                $reproduccionPorMatching[
+                    $indiceMatching
+                ][] = $this->crearPuntoReproduccion(
+                    $ubicacionOriginal,
+                    $latitud,
+                    $longitud,
+                    $numeroSegmento
+                );
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | GEOMETRÍAS DE CADA MATCHING
+            |--------------------------------------------------------------------------
+            */
+
+            $segmentosRuta = [];
+
+            $segmentosReproduccion = [];
+
+
+            foreach (
+                $datos['matchings'] as $indice => $matching
+            ) {
+
+                $coordenadasMatching =
+                    $matching['geometry']['coordinates']
+                    ?? [];
+
+
+                $geometria = $this->convertirCoordenadasGeoJson(
+                    $coordenadasMatching
+                );
+
+
+                if (count($geometria) < 2) {
+                    continue;
+                }
+
+
+                $segmentosRuta[] = $geometria;
+
+
+                $puntosReproduccion =
+                    $reproduccionPorMatching[$indice]
+                    ?? [];
+
+
+                /*
+                | Si existe una sola coincidencia pero
+                | OSRM no devuelve tracepoints utilizables,
+                | conservamos las muestras GPS originales.
+                */
+
+                if (
+                    empty($puntosReproduccion)
+                    &&
+                    count($datos['matchings']) === 1
+                ) {
+
+                    $puntosReproduccion =
+                        $this->convertirMuestrasAReproduccion(
+                            $muestras,
+                            $numeroSegmento
+                        );
+                }
+
+
+                $segmentosReproduccion[] =
+                    $puntosReproduccion;
+            }
+
+
+            if (empty($segmentosRuta)) {
+                return null;
+            }
+
+
+            return [
+                'segmentosRuta' => $segmentosRuta,
+
+                'segmentosReproduccion' =>
+                    $segmentosReproduccion,
+            ];
+
+        } catch (\Throwable $e) {
+
+            Log::warning(
+                'OSRM Map Matching no disponible.',
+                [
+                    'mensaje' => $e->getMessage(),
+
+                    'segmento' => $numeroSegmento,
+                ]
+            );
+
+            return null;
+        }
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | OSRM ROUTE: ALTERNATIVA
+    |--------------------------------------------------------------------------
     |
+    | Genera una ruta vial estimada cuando Map Matching
+    | no consigue reconstruir correctamente el recorrido.
+    |
+    */
+
+    private function obtenerRutaPorCalles(
+        array $muestras
+    ): ?array {
+
+        if (count($muestras) < 2) {
+            return null;
+        }
+
+
+        $coordenadas = $this->construirCadenaCoordenadas(
+            $muestras
+        );
+
+
+        try {
+
+            $respuesta = Http::acceptJson()
+
+                ->timeout(15)
+
+                ->get(
+                    self::OSRM_SERVIDOR
+                    .
+                    '/route/v1/driving/'
+                    .
+                    $coordenadas,
+                    [
+                        'geometries' => 'geojson',
+
+                        'overview' => 'full',
+
+                        'steps' => 'false',
+
+                        'continue_straight' => 'true',
+                    ]
+                );
+
+
+            if (!$respuesta->successful()) {
+                return null;
+            }
+
+
+            $datos = $respuesta->json();
+
+
+            if (
+                ($datos['code'] ?? null) !== 'Ok'
+                ||
+                empty(
+                    $datos['routes'][0]['geometry']['coordinates']
+                )
+            ) {
+
+                return null;
+            }
+
+
+            $ruta = $this->convertirCoordenadasGeoJson(
+                $datos['routes'][0]['geometry']['coordinates']
+            );
+
+
+            return count($ruta) >= 2
+                ? $ruta
+                : null;
+
+        } catch (\Throwable $e) {
+
+            Log::warning(
+                'OSRM Route no disponible.',
+                [
+                    'mensaje' => $e->getMessage(),
+                ]
+            );
+
+            return null;
+        }
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | CONSTRUIR CADENA DE COORDENADAS
+    |--------------------------------------------------------------------------
+    |
+    | OSRM utiliza longitud,latitud.
+    |
+    */
+
+    private function construirCadenaCoordenadas(
+        array $ubicaciones
+    ): string {
+
+        return collect($ubicaciones)
+
+            ->map(function ($ubicacion) {
+
+                return sprintf(
+                    '%.7F,%.7F',
+                    (float) $ubicacion->longitud,
+                    (float) $ubicacion->latitud
+                );
+
+            })
+
+            ->implode(';');
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | CONVERTIR GEOMETRÍA GEOJSON
+    |--------------------------------------------------------------------------
+    |
+    | GeoJSON: [longitud, latitud]
+    | Leaflet: [latitud, longitud]
+    |
+    */
+
+    private function convertirCoordenadasGeoJson(
+        array $coordenadas
+    ): array {
+
+        $resultado = [];
+
+
+        foreach ($coordenadas as $coordenada) {
+
+            if (
+                !isset(
+                    $coordenada[0],
+                    $coordenada[1]
+                )
+            ) {
+
+                continue;
+            }
+
+
+            $resultado[] = [
+                (float) $coordenada[1],
+                (float) $coordenada[0],
+            ];
+        }
+
+
+        return $resultado;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | CONVERTIR GPS ORIGINAL A GEOMETRÍA
+    |--------------------------------------------------------------------------
+    */
+
+    private function convertirUbicacionesAGeometria(
+        Collection $ubicaciones
+    ): array {
+
+        return $ubicaciones
+
+            ->map(function ($ubicacion) {
+
+                return [
+                    (float) $ubicacion->latitud,
+                    (float) $ubicacion->longitud,
+                ];
+
+            })
+
+            ->values()
+
+            ->all();
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | PREPARAR PUNTOS PARA REPRODUCCIÓN
+    |--------------------------------------------------------------------------
+    |
+    | Cada posición conserva:
+    |
+    | - Identificador GPS.
+    | - Latitud.
+    | - Longitud.
+    | - Fecha y hora original.
+    | - Velocidad original.
+    | - Número de segmento.
+    |
+    */
+
+    private function convertirMuestrasAReproduccion(
+        array $muestras,
+        int $numeroSegmento
+    ): array {
+
+        $resultado = [];
+
+
+        foreach ($muestras as $ubicacion) {
+
+            $resultado[] = $this->crearPuntoReproduccion(
+                $ubicacion,
+                (float) $ubicacion->latitud,
+                (float) $ubicacion->longitud,
+                $numeroSegmento
+            );
+        }
+
+
+        return $resultado;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | CREAR REGISTRO PARA REPRODUCTOR
+    |--------------------------------------------------------------------------
+    */
+
+    private function crearPuntoReproduccion(
+        Ubicacion $ubicacion,
+        float $latitud,
+        float $longitud,
+        int $numeroSegmento
+    ): array {
+
+        $fecha = $ubicacion->fecha_gps
+            ? Carbon::parse(
+                $ubicacion->fecha_gps
+            )->toIso8601String()
+            : null;
+
+
+        $velocidad = is_numeric(
+            $ubicacion->velocidad
+        )
+            ? (float) $ubicacion->velocidad
+            : 0.0;
+
+
+        return [
+
+            'id' => (int) $ubicacion->id,
+
+            'latitud' => $latitud,
+
+            'longitud' => $longitud,
+
+            'fecha_gps' => $fecha,
+
+            'velocidad' => $velocidad,
+
+            'segmento' => $numeroSegmento,
+
+        ];
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | VERIFICAR ACCESO AL VEHÍCULO
+    |--------------------------------------------------------------------------
     */
 
     private function verificarPropiedadVehiculo(
         Vehiculo $vehiculo
     ): void {
 
-        $user =
-            auth()->user();
+        $user = auth()->user();
 
 
         /*
@@ -808,9 +1229,7 @@ class RutaController extends Controller
         */
 
         if (
-            $user->hasRole(
-                'Super Administrador'
-            )
+            $user->hasRole('Super Administrador')
         ) {
 
             return;
@@ -821,15 +1240,10 @@ class RutaController extends Controller
         |--------------------------------------------------------------------------
         | CLIENTE INDIVIDUAL
         |--------------------------------------------------------------------------
-        |
-        | Solo puede consultar vehículos asociados directamente a su cuenta.
-        |
         */
 
         if (
-            $user->hasRole(
-                'Cliente Individual'
-            )
+            $user->hasRole('Cliente Individual')
         ) {
 
             if (
@@ -853,26 +1267,17 @@ class RutaController extends Controller
         |--------------------------------------------------------------------------
         | CONDUCTOR
         |--------------------------------------------------------------------------
-        |
-        | Solo puede consultar el historial del vehículo
-        | que tenga asignado actualmente.
-        |
         */
 
         if (
-            $user->hasRole(
-                'Conductor'
-            )
+            $user->hasRole('Conductor')
         ) {
 
             $conductor = Conductor::where(
                 'email',
                 $user->email
             )
-                ->where(
-                    'activo',
-                    true
-                )
+                ->where('activo', true)
                 ->first();
 
 
@@ -901,9 +1306,6 @@ class RutaController extends Controller
         |--------------------------------------------------------------------------
         | ADMINISTRADOR DE EMPRESA / GESTOR DE FLOTILLA
         |--------------------------------------------------------------------------
-        |
-        | Solo pueden consultar vehículos de su empresa.
-        |
         */
 
         if (
