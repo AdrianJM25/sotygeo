@@ -249,8 +249,6 @@ return [
 
             '--if-exists',
 
-            '--restrict-key=SotyGeo2026BackupA7F2C9D4E8B1F6A3C5D7E9B2F4A6C8D1',
-
         ],
 
     ],

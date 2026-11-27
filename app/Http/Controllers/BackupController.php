@@ -172,7 +172,7 @@ class BackupController extends Controller
             new Process(
                 [
 
-                    PHP_BINARY,
+                    $this->phpCliBinary(),
 
                     base_path(
                         'artisan'
@@ -233,7 +233,7 @@ class BackupController extends Controller
                         $e->getMessage(),
 
                     'php_binary' =>
-                        PHP_BINARY,
+                        $this->phpCliBinary(),
 
                     'artisan' =>
                         base_path(
@@ -357,7 +357,7 @@ class BackupController extends Controller
                     */
 
                     'php_binary' =>
-                        PHP_BINARY,
+                        $this->phpCliBinary(),
 
                     'artisan' =>
                         base_path(
@@ -864,7 +864,7 @@ class BackupController extends Controller
             new Process(
                 [
 
-                    PHP_BINARY,
+                    $this->phpCliBinary(),
 
                     base_path(
                         'artisan'
@@ -977,7 +977,7 @@ class BackupController extends Controller
             new Process(
                 [
 
-                    PHP_BINARY,
+                    $this->phpCliBinary(),
 
                     base_path(
                         'artisan'
@@ -1018,7 +1018,7 @@ class BackupController extends Controller
                     'archivo' => $archivo,
                     'ruta' => $rutaRespaldo,
                     'mensaje' => $e->getMessage(),
-                    'php_binary' => PHP_BINARY,
+                    'php_binary' => $this->phpCliBinary(),
                     'temp_directory' => sys_get_temp_dir(),
                     'working_directory' => base_path(),
                 ]
@@ -1145,6 +1145,15 @@ class BackupController extends Controller
                 .
                 $archivo
             );
+    }
+
+
+    /**
+     * Ejecutar Artisan con PHP CLI, no con el binario PHP-FPM.
+     */
+    private function phpCliBinary(): string
+    {
+        return PHP_SAPI === 'cli' ? PHP_BINARY : 'php';
     }
 
 
