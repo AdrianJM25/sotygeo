@@ -125,7 +125,11 @@
                         {{ session('status') }}
                     </div>
                 @endif
-
+                @if (session('session_expired'))
+                <div class="mb-6 px-4 py-3 rounded-lg bg-amber-50 text-amber-800 text-sm border border-amber-200">
+                    {{ session('session_expired') }}
+                </div>
+                 @endif
                 <!-- Aviso de cierre automático por inactividad -->
                 <div
                     id="inactivity-login-message"

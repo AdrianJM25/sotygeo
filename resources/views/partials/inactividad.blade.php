@@ -1,3 +1,4 @@
+
 @auth
     <form
         id="sotygeo-logout-inactividad"
@@ -13,11 +14,12 @@
 
             /*
             |--------------------------------------------------------------------------
-            | CIERRE AUTOMÁTICO POR INACTIVIDAD - SotyGeo
+            | FN.24 - CIERRE AUTOMÁTICO POR INACTIVIDAD
             |--------------------------------------------------------------------------
             |
-            | Tiempo máximo sin actividad humana: 15 minutos.
-            | Las peticiones automáticas del mapa/GPS NO reinician el contador.
+            | Tiempo máximo sin actividad humana: 5 minutos.
+            | Las solicitudes automáticas del mapa y GPS
+            | no reinician el contador.
             |
             */
 
@@ -30,16 +32,19 @@
             const CLAVE_CIERRE_INACTIVIDAD =
                 'sotygeo_cierre_por_inactividad';
 
+            const URL_LOGIN =
+                @json(route('login'));
+
             const formularioLogout =
                 document.getElementById(
                     'sotygeo-logout-inactividad'
                 );
 
-            let cerrandoSesion =
-                false;
+            let cerrandoSesion = false;
 
-            let ultimoRegistroMovimiento =
-                0;
+            let ultimoRegistroMovimiento = 0;
+
+            let cierrePendiente = false;
 
 
             function ahora()
@@ -50,7 +55,7 @@
 
             function guardarActividad()
             {
-                if (cerrandoSesion) {
+                if (cerrandoSesion || cierrePendiente) {
                     return;
                 }
 
@@ -63,15 +68,11 @@
 
             function guardarMovimientoConLimite()
             {
-                const tiempoActual =
-                    ahora();
+                const tiempoActual = ahora();
 
                 if (
-                    tiempoActual
-                    -
-                    ultimoRegistroMovimiento
-                    >=
-                    5000
+                    tiempoActual -
+                    ultimoRegistroMovimiento >= 5000
                 ) {
                     ultimoRegistroMovimiento =
                         tiempoActual;
@@ -92,8 +93,7 @@
                     return ahora();
                 }
 
-                const convertido =
-                    Number(valor);
+                const convertido = Number(valor);
 
                 return Number.isFinite(convertido)
                     ? convertido
@@ -101,61 +101,122 @@
             }
 
 
-            function cerrarPorInactividad()
+            function redirigirAlLogin()
             {
-                if (
-                    cerrandoSesion
-                    ||
-                    !formularioLogout
-                ) {
-                    return;
-                }
-
-                cerrandoSesion =
-                    true;
-
                 localStorage.removeItem(
                     CLAVE_ULTIMA_ACTIVIDAD
                 );
 
-                /*
-                | Esta marca vive solo en esta pestaña y sirve
-                | para mostrar el aviso al llegar al login.
-                */
                 sessionStorage.setItem(
                     CLAVE_CIERRE_INACTIVIDAD,
                     '1'
                 );
 
-                const datosLogout =
-                    new FormData(
-                        formularioLogout
+                /*
+                | Usar replace evita regresar fácilmente
+                | a la página anterior mediante el historial.
+                */
+
+                window.location.replace(URL_LOGIN);
+            }
+
+
+            async function cerrarPorInactividad()
+            {
+                if (
+                    cerrandoSesion ||
+                    !formularioLogout
+                ) {
+                    return;
+                }
+
+                cerrandoSesion = true;
+                cierrePendiente = true;
+
+                try {
+
+                    const datosLogout =
+                        new FormData(formularioLogout);
+
+                    const respuesta = await fetch(
+                        formularioLogout.action,
+                        {
+                            method: 'POST',
+                            body: datosLogout,
+                            credentials: 'same-origin',
+                            cache: 'no-store',
+
+                            headers: {
+                                'X-Requested-With':
+                                    'XMLHttpRequest',
+
+                                'Accept':
+                                    'application/json'
+                            }
+                        }
                     );
 
-                fetch(
-                    formularioLogout.action,
-                    {
-                        method: 'POST',
-                        body: datosLogout,
-                        credentials: 'same-origin',
-                        headers: {
-                            'X-Requested-With':
-                                'XMLHttpRequest'
-                        }
+                    /*
+                    |--------------------------------------------------------------------------
+                    | SESIÓN EXPIRADA O TOKEN CSRF INVÁLIDO
+                    |--------------------------------------------------------------------------
+                    */
+
+                    if (
+                        respuesta.status === 419 ||
+                        respuesta.status === 401
+                    ) {
+
+                        /*
+                        | No reutilizar el formulario vencido.
+                        | Solicitar una nueva página de acceso.
+                        */
+
+                        redirigirAlLogin();
+
+                        return;
                     }
-                )
-                .then(function () {
-                    window.location.href =
-                        '{{ route('login') }}';
-                })
-                .catch(function () {
+
 
                     /*
-                    | Si por alguna razón falla fetch,
-                    | usamos el cierre normal como respaldo.
+                    |--------------------------------------------------------------------------
+                    | COMPROBAR RESPUESTA DEL SERVIDOR
+                    |--------------------------------------------------------------------------
                     */
-                    formularioLogout.submit();
-                });
+
+                    if (!respuesta.ok) {
+                        throw new Error(
+                            'Error al cerrar sesión: ' +
+                            respuesta.status
+                        );
+                    }
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | CIERRE EXITOSO
+                    |--------------------------------------------------------------------------
+                    */
+
+                    redirigirAlLogin();
+
+                } catch (error) {
+
+                    console.error(
+                        'SotyGeo: Error durante el cierre por inactividad.',
+                        error
+                    );
+
+                    /*
+                    | No reenviar un formulario con un
+                    | token CSRF posiblemente vencido.
+                    |
+                    | Permitir que el siguiente ciclo
+                    | vuelva a intentar el cierre.
+                    */
+
+                    cerrandoSesion = false;
+                }
             }
 
 
@@ -165,20 +226,29 @@
                     return;
                 }
 
+                if (cierrePendiente) {
+                    cerrarPorInactividad();
+                    return;
+                }
+
                 const tiempoInactivo =
-                    ahora()
-                    -
+                    ahora() -
                     obtenerUltimaActividad();
 
                 if (
-                    tiempoInactivo
-                    >=
+                    tiempoInactivo >=
                     LIMITE_INACTIVIDAD_MS
                 ) {
                     cerrarPorInactividad();
                 }
             }
 
+
+            /*
+            |--------------------------------------------------------------------------
+            | EVENTOS DE ACTIVIDAD HUMANA
+            |--------------------------------------------------------------------------
+            */
 
             window.addEventListener(
                 'mousemove',
@@ -216,13 +286,18 @@
             );
 
 
+            /*
+            |--------------------------------------------------------------------------
+            | SINCRONIZACIÓN ENTRE PESTAÑAS
+            |--------------------------------------------------------------------------
+            */
+
             window.addEventListener(
                 'storage',
                 function (event) {
 
                     if (
-                        event.key
-                        ===
+                        event.key ===
                         CLAVE_ULTIMA_ACTIVIDAD
                     ) {
                         verificarInactividad();
@@ -231,13 +306,18 @@
             );
 
 
+            /*
+            |--------------------------------------------------------------------------
+            | VERIFICACIÓN AL REGRESAR A LA PESTAÑA
+            |--------------------------------------------------------------------------
+            */
+
             document.addEventListener(
                 'visibilitychange',
                 function () {
 
                     if (
-                        document.visibilityState
-                        ===
+                        document.visibilityState ===
                         'visible'
                     ) {
                         verificarInactividad();
@@ -246,11 +326,17 @@
             );
 
 
+            /*
+            |--------------------------------------------------------------------------
+            | INICIAR CONTROL DE INACTIVIDAD
+            |--------------------------------------------------------------------------
+            */
+
             guardarActividad();
 
             setInterval(
                 verificarInactividad,
-                30000
+                5000
             );
 
         });
