@@ -87,9 +87,10 @@
         {{-- MENSAJE DE ÉXITO --}}
         {{-- ====================================================== --}}
 
-        @if(session('success'))
+        @if(session('backup_success') || session('success'))
 
             <div
+                role="status"
                 class="rounded-2xl border
                        border-emerald-200
                        bg-emerald-50
@@ -107,7 +108,7 @@
                         check_circle
                     </span>
 
-                    {{ session('success') }}
+                    {{ session('backup_success') ?? session('success') }}
 
                 </div>
 
@@ -119,6 +120,12 @@
         {{-- ====================================================== --}}
         {{-- ERRORES --}}
         {{-- ====================================================== --}}
+
+        @if(session('backup_error'))
+            <div role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+                {{ session('backup_error') }}
+            </div>
+        @endif
 
         @if($errors->any())
 
@@ -280,6 +287,7 @@
 
                 <form
                     action="{{ route('backups.store') }}"
+                    data-backup-operation="generate"
                     method="POST"
                 >
 
@@ -820,9 +828,8 @@
                                                     )
                                                 }}"
                                                 method="POST"
-                                                onsubmit="return confirm(
-                                                    'ADVERTENCIA: Vas a restaurar la base de datos usando el respaldo:\n\n{{ addslashes($respaldo['nombre']) }}\n\nAntes de continuar, SotyGeo generará automáticamente un respaldo de seguridad del estado actual.\n\n¿Deseas continuar con la restauración?'
-                                                );"
+                                                data-backup-operation="restore"
+                                                data-backup-name="{{ $respaldo['nombre'] }}"
                                             >
 
                                                 @csrf
@@ -934,5 +941,92 @@
         </div>
 
     </div>
+
+
+    <dialog id="backup-confirm-dialog" class="w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-xl backdrop:bg-gray-900/50">
+        <div class="flex items-start gap-3">
+            <span class="material-symbols-rounded text-3xl text-amber-600">warning</span>
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900">¿Restaurar base de datos?</h2>
+                <p class="mt-2 text-sm text-gray-600">Esta operación puede reemplazar los datos actuales de SotyGeo. Se intentará generar un respaldo de seguridad antes de continuar.</p>
+                <p id="backup-selected-name" class="mt-3 break-all rounded-lg bg-gray-100 p-3 text-sm font-medium text-gray-800"></p>
+                <p class="mt-3 text-sm text-red-700">Comprueba que estás en la base de datos de prueba y que el respaldo es válido antes de continuar.</p>
+            </div>
+        </div>
+        <div class="mt-6 flex justify-end gap-3">
+            <button id="backup-cancel" type="button" autofocus class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700">Cancelar</button>
+            <button id="backup-confirm" type="button" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">Sí, restaurar</button>
+        </div>
+    </dialog>
+
+    <dialog id="backup-loading-dialog" class="w-[calc(100%-2rem)] max-w-sm rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-xl backdrop:bg-gray-900/50" aria-labelledby="backup-loading-title">
+        <div class="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-blue-100 border-t-[#0056b3]" aria-hidden="true"></div>
+        <h2 id="backup-loading-title" class="mt-4 font-semibold text-gray-900">Procesando respaldo…</h2>
+        <p class="mt-2 text-sm text-gray-500">No cierres ni actualices esta página mientras se realiza la operación.</p>
+    </dialog>
+
+    <script>
+        (() => {
+            const confirmDialog = document.getElementById('backup-confirm-dialog');
+            const loadingDialog = document.getElementById('backup-loading-dialog');
+            const selectedName = document.getElementById('backup-selected-name');
+            let pendingForm = null;
+            let approvedForm = null;
+            let busy = false;
+
+            function showLoading(form) {
+                busy = true;
+                const restoring = form.dataset.backupOperation === 'restore';
+                document.getElementById('backup-loading-title').textContent = restoring
+                    ? 'Restaurando base de datos…' : 'Generando respaldo…';
+                document.querySelectorAll('form[data-backup-operation] button[type="submit"]').forEach(button => {
+                    button.disabled = true;
+                    button.classList.add('opacity-60', 'cursor-not-allowed');
+                });
+                if (typeof loadingDialog.showModal === 'function') loadingDialog.showModal();
+            }
+
+            document.querySelectorAll('form[data-backup-operation]').forEach(form => {
+                form.addEventListener('submit', event => {
+                    if (busy) { event.preventDefault(); return; }
+                    if (form.dataset.backupOperation === 'restore' && approvedForm !== form) {
+                        event.preventDefault();
+                        if (typeof confirmDialog.showModal !== 'function') {
+                            if (window.confirm('¿Restaurar la base de datos desde ' + form.dataset.backupName + '? Puede reemplazar los datos actuales.')) {
+                                approvedForm = form;
+                                form.requestSubmit();
+                            }
+                            return;
+                        }
+                        pendingForm = form;
+                        selectedName.textContent = form.dataset.backupName;
+                        confirmDialog.showModal();
+                        return;
+                    }
+                    approvedForm = null;
+                    showLoading(form);
+                });
+            });
+
+            document.getElementById('backup-cancel').addEventListener('click', () => confirmDialog.close());
+            confirmDialog.addEventListener('close', () => { pendingForm = null; });
+            document.getElementById('backup-confirm').addEventListener('click', () => {
+                const form = pendingForm;
+                confirmDialog.close();
+                if (form) { approvedForm = form; form.requestSubmit(); }
+            });
+            loadingDialog.addEventListener('cancel', event => event.preventDefault());
+            window.addEventListener('pageshow', event => {
+                if (!event.persisted) return;
+                busy = false;
+                approvedForm = null;
+                if (loadingDialog.open) loadingDialog.close();
+                document.querySelectorAll('form[data-backup-operation] button[type="submit"]').forEach(button => {
+                    button.disabled = false;
+                    button.classList.remove('opacity-60', 'cursor-not-allowed');
+                });
+            });
+        })();
+    </script>
 
 </x-app-layout>
