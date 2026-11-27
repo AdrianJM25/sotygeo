@@ -251,9 +251,8 @@ class RutaController extends Controller
     |
     | 1. Separar recorridos independientes.
     | 2. Reducir coordenadas para OSRM.
-    | 3. Intentar Map Matching.
-    | 4. Utilizar Route como alternativa.
-    | 5. Conservar GPS original como último recurso.
+    | 3. Intentar Map Matching con timestamps reales.
+    | 4. Si falla, conservar el recorrido GPS original.
     |
     */
 
@@ -295,7 +294,7 @@ class RutaController extends Controller
 
             /*
             |--------------------------------------------------------------------------
-            | PRIMER INTENTO: MAP MATCHING
+            | INTENTAR MAP MATCHING
             |--------------------------------------------------------------------------
             */
 
@@ -328,35 +327,14 @@ class RutaController extends Controller
 
             /*
             |--------------------------------------------------------------------------
-            | SEGUNDO INTENTO: RUTA POR CALLES
+            | RESPALDO: GPS ORIGINAL
             |--------------------------------------------------------------------------
-            */
-
-            $rutaEstimada = $this->obtenerRutaPorCalles(
-                $muestras
-            );
-
-
-            if ($rutaEstimada !== null) {
-
-                $segmentosRuta[] = $rutaEstimada;
-
-                $segmentosReproduccion[] =
-                    $this->convertirMuestrasAReproduccion(
-                        $muestras,
-                        $numeroSegmento
-                    );
-
-                $modos[] = 'route';
-
-                continue;
-            }
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | ÚLTIMO RECURSO: GPS ORIGINAL
-            |--------------------------------------------------------------------------
+            |
+            | Si OSRM no encuentra una coincidencia confiable,
+            | no generamos una ruta estimada por otras calles.
+            |
+            | Se conservan las coordenadas reales registradas.
+            |
             */
 
             $segmentosRuta[] =
@@ -367,7 +345,7 @@ class RutaController extends Controller
 
             $segmentosReproduccion[] =
                 $this->convertirMuestrasAReproduccion(
-                    $muestras,
+                    $segmentoGps->all(),
                     $numeroSegmento
                 );
 
@@ -410,28 +388,21 @@ class RutaController extends Controller
         |--------------------------------------------------------------------------
         | DETERMINAR MODO GENERAL
         |--------------------------------------------------------------------------
+        |
+        | Solo se indica ajuste a calles cuando todos
+        | los segmentos fueron procesados correctamente.
+        |
         */
 
-        if (
-            in_array('match', $modos, true)
-        ) {
-
-            $modoRuta = 'match';
-
-        }
-
-        elseif (
-            in_array('route', $modos, true)
-        ) {
-
-            $modoRuta = 'route';
-
-        }
-
-        else {
-
-            $modoRuta = 'gps';
-        }
+        $modoRuta = (
+            !empty($modos)
+            &&
+            count(array_unique($modos)) === 1
+            &&
+            $modos[0] === 'match'
+        )
+            ? 'match'
+            : 'gps';
 
 
         return [
@@ -690,10 +661,13 @@ class RutaController extends Controller
     | OSRM MAP MATCHING
     |--------------------------------------------------------------------------
     |
-    | Ajusta los puntos GPS a la red vial.
+    | Ajusta las posiciones GPS a la red vial.
     |
-    | También recupera tracepoints para relacionar
-    | las posiciones ajustadas con sus registros GPS.
+    | Utiliza:
+    | - Coordenadas GPS originales.
+    | - Marcas de tiempo Unix.
+    | - Precisión GPS.
+    | - Tracepoints para relacionar el recorrido.
     |
     */
 
@@ -712,6 +686,64 @@ class RutaController extends Controller
         );
 
 
+        /*
+        |--------------------------------------------------------------------------
+        | CONSTRUIR MARCAS DE TIEMPO
+        |--------------------------------------------------------------------------
+        |
+        | OSRM utiliza timestamps Unix en segundos.
+        | Deben estar en orden creciente.
+        |
+        */
+
+        $timestamps = [];
+
+        $ultimoTimestamp = null;
+
+
+        foreach ($muestras as $ubicacion) {
+
+            $timestamp = Carbon::parse(
+                $ubicacion->fecha_gps
+            )->timestamp;
+
+
+            /*
+            | Si dos registros tienen el mismo segundo,
+            | ajustamos el valor enviado a OSRM.
+            |
+            | La fecha original de la base de datos
+            | permanece sin modificaciones.
+            */
+
+            if (
+                $ultimoTimestamp !== null
+                &&
+                $timestamp <= $ultimoTimestamp
+            ) {
+
+                $timestamp = $ultimoTimestamp + 1;
+            }
+
+
+            $timestamps[] = (string) $timestamp;
+
+            $ultimoTimestamp = $timestamp;
+        }
+
+
+        $cadenaTimestamps = implode(
+            ';',
+            $timestamps
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | PRECISIÓN GPS
+        |--------------------------------------------------------------------------
+        */
+
         $radios = implode(
             ';',
             array_fill(
@@ -726,7 +758,7 @@ class RutaController extends Controller
 
             $respuesta = Http::acceptJson()
 
-                ->timeout(15)
+                ->timeout(20)
 
                 ->get(
                     self::OSRM_SERVIDOR
@@ -735,6 +767,7 @@ class RutaController extends Controller
                     .
                     $coordenadas,
                     [
+
                         'geometries' => 'geojson',
 
                         'overview' => 'full',
@@ -743,9 +776,21 @@ class RutaController extends Controller
 
                         'tidy' => 'true',
 
-                        'gaps' => 'split',
+                        /*
+                        | Los recorridos ya fueron separados
+                        | previamente mediante segmentarUbicaciones().
+                        */
+
+                        'gaps' => 'ignore',
 
                         'radiuses' => $radios,
+
+                        /*
+                        | Tiempo real de cada posición GPS.
+                        */
+
+                        'timestamps' => $cadenaTimestamps,
+
                     ]
                 );
 
@@ -774,6 +819,15 @@ class RutaController extends Controller
                 empty($datos['matchings'])
             ) {
 
+                Log::warning(
+                    'OSRM no encontró coincidencias para el recorrido.',
+                    [
+                        'codigo' => $datos['code'] ?? 'desconocido',
+
+                        'segmento' => $numeroSegmento,
+                    ]
+                );
+
                 return null;
             }
 
@@ -785,7 +839,6 @@ class RutaController extends Controller
             */
 
             $reproduccionPorMatching = [];
-
 
             $tracepoints = $datos['tracepoints'] ?? [];
 
@@ -824,7 +877,7 @@ class RutaController extends Controller
 
                 /*
                 | OSRM devuelve longitud, latitud.
-                | Convertimos a latitud, longitud.
+                | Leaflet utiliza latitud, longitud.
                 */
 
                 $latitud = (float)
@@ -848,7 +901,7 @@ class RutaController extends Controller
 
             /*
             |--------------------------------------------------------------------------
-            | GEOMETRÍAS DE CADA MATCHING
+            | PROCESAR GEOMETRÍAS DE CADA MATCHING
             |--------------------------------------------------------------------------
             */
 
@@ -906,6 +959,21 @@ class RutaController extends Controller
 
                 $segmentosReproduccion[] =
                     $puntosReproduccion;
+
+
+                Log::info(
+                    'OSRM Map Matching completado.',
+                    [
+                        'segmento' => $numeroSegmento,
+
+                        'confianza' =>
+                            $matching['confidence'] ?? null,
+
+                        'puntos_gps' => count($muestras),
+
+                        'puntos_trazado' => count($geometria),
+                    ]
+                );
             }
 
 
@@ -915,11 +983,14 @@ class RutaController extends Controller
 
 
             return [
+
                 'segmentosRuta' => $segmentosRuta,
 
                 'segmentosReproduccion' =>
                     $segmentosReproduccion,
+
             ];
+
 
         } catch (\Throwable $e) {
 
@@ -939,11 +1010,11 @@ class RutaController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | OSRM ROUTE: ALTERNATIVA
+    | OSRM ROUTE: MÉTODO DE RESPALDO
     |--------------------------------------------------------------------------
     |
-    | Genera una ruta vial estimada cuando Map Matching
-    | no consigue reconstruir correctamente el recorrido.
+    | Se conserva este método por compatibilidad,
+    | aunque la nueva construcción de rutas ya no lo utiliza.
     |
     */
 
@@ -1013,6 +1084,7 @@ class RutaController extends Controller
             return count($ruta) >= 2
                 ? $ruta
                 : null;
+
 
         } catch (\Throwable $e) {
 
